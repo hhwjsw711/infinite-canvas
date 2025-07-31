@@ -17,7 +17,7 @@ export const GithubBadge: React.FC = () => {
           }),
           "hidden xl:flex",
         )}
-        href={"https://github.com/fal-ai-community/infinite-kanvas"}
+        href={"https://github.com/hhwjsw711/infinite-canvas"}
         target="_blank"
         title="Star on GitHub"
       >
