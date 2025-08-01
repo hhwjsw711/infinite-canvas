@@ -4,6 +4,7 @@ import { CoreProviders } from "./core-providers";
 import { focal, hal, halMono, commitMono, inconsolata } from "@/lib/fonts";
 import { BotIdClient } from "botid/client";
 import { Analytics } from "@vercel/analytics/next";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
 export const metadata: Metadata = {
   title: {
@@ -96,36 +97,40 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={[
-        hal.variable,
-        halMono.variable,
-        focal.variable,
-        inconsolata.variable,
-        commitMono.variable,
-      ].join(" ")}
-      suppressHydrationWarning
-    >
-      <head>
-        <meta name="color-scheme" content="dark" />
-        <BotIdClient
-          protect={[
-            {
-              path: "/api/trpc/*",
-              method: "POST",
-            },
-            {
-              path: "/api/fal",
-              method: "POST",
-            },
-          ]}
-        />
-      </head>
-      <body className={`font-sans bg-background text-foreground min-h-screen`}>
-        <CoreProviders>{children}</CoreProviders>
-      </body>
-      <Analytics />
-    </html>
+    <ConvexAuthNextjsServerProvider>
+      <html
+        lang="en"
+        className={[
+          hal.variable,
+          halMono.variable,
+          focal.variable,
+          inconsolata.variable,
+          commitMono.variable,
+        ].join(" ")}
+        suppressHydrationWarning
+      >
+        <head>
+          <meta name="color-scheme" content="dark" />
+          <BotIdClient
+            protect={[
+              {
+                path: "/api/trpc/*",
+                method: "POST",
+              },
+              {
+                path: "/api/fal",
+                method: "POST",
+              },
+            ]}
+          />
+        </head>
+        <body
+          className={`font-sans bg-background text-foreground min-h-screen`}
+        >
+          <CoreProviders>{children}</CoreProviders>
+        </body>
+        <Analytics />
+      </html>
+    </ConvexAuthNextjsServerProvider>
   );
 }

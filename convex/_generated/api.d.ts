@@ -1,4 +1,4 @@
- 
+/* eslint-disable */
 /**
  * Generated `api` utility.
  *
@@ -13,9 +13,11 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as auth from "../auth.js";
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
 import type * as files from "../files.js";
+import type * as http from "../http.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -26,9 +28,11 @@ import type * as files from "../files.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   constants: typeof constants;
   crons: typeof crons;
   files: typeof files;
+  http: typeof http;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

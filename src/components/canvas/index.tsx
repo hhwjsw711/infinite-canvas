@@ -113,6 +113,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { GithubBadge } from "@/components/canvas/GithubBadge";
+import { Footer } from "@/components/canvas/footer";
 import { GenerationsIndicator } from "@/components/generations-indicator";
 
 // Import multiplayer components
@@ -3567,6 +3568,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps = {}) {
 
           {/* <PoweredByFalBadge /> */}
           <GithubBadge />
+          <Footer />
 
           {/* Dimension display for selected images */}
           <DimensionDisplay
