@@ -175,7 +175,7 @@ export default function HomePage() {
             <div className="w-full px-8 pt-8 pb-4 relative z-10">
               <div className="inline-grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] gap-4 justify-center w-full">
                 {filteredRooms.map((room) => (
-                  <Link key={room.id} href={`/k/${room.id}`}>
+                  <Link key={room.id} href={`/rooms/${room.id}`}>
                     <div className="group relative w-[150px] h-[150px] flex flex-col p-3 rounded border border-border hover:border-primary hover:bg-muted/20 transition-colors cursor-pointer overflow-hidden">
                       {/* Main content */}
                       <div className="flex-1 flex flex-col items-center justify-center min-h-0">
@@ -377,7 +377,7 @@ export default function HomePage() {
                 );
 
                 // Navigate to the room
-                window.location.href = `/k/${roomId}?${params}`;
+                window.location.href = `/rooms/${roomId}?${params}`;
               }}
             >
               Start

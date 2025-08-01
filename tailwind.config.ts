@@ -104,8 +104,25 @@ module.exports = {
           "sans-serif",
         ],
       },
+      keyframes: {
+        popIn: {
+          "0%": {
+            opacity: "0",
+            transform: "translate(-50%, -100%) scale(0.95)",
+          },
+          "50%": {
+            opacity: "1",
+            transform: "translate(-50%, -100%) scale(1.05)",
+          },
+          "100%": {
+            opacity: "1",
+            transform: "translate(-50%, -100%) scale(1)",
+          },
+        },
+      },
       animation: {
         "logo-spin": "logoSpin 4s ease-in-out infinite",
+        popIn: "popIn 200ms cubic-bezier(.17,.67,.39,1.32)",
       },
     },
   },

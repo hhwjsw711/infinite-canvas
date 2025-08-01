@@ -109,7 +109,7 @@ export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
   };
 
   const handleCopyLink = () => {
-    const link = `${window.location.origin}/k/${roomId}`;
+    const link = `${window.location.origin}/rooms/${roomId}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);

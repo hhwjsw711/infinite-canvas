@@ -24,7 +24,7 @@ npm run dev
 
 1. **Browse rooms**: Visit `http://localhost:3000` to see available public rooms
 2. **Create a room**: Click "Create Room" button on the homepage
-3. **Join a room**: Click on any room card or visit `http://localhost:3000/k/[room-id]`
+3. **Join a room**: Click on any room card or visit `http://localhost:3000/rooms/[room-id]`
 4. **Share a room**: Copy the room URL to invite others
 
 ## Features

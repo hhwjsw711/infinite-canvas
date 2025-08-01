@@ -22,6 +22,12 @@ const buttonVariants = cva(
           "data-[state=open]:bg-surface-alpha",
           "[&>svg]:text-content-lighter",
         ],
+        destructive: [
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        ],
+        outline: [
+          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
+        ],
         primary: [
           "bg-primary text-primary-foreground hover:bg-primary/80",
           "[&>svg]:text-primary-300",
