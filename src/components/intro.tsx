@@ -19,7 +19,9 @@ export function Intro({ defaultOpen }: { defaultOpen: boolean }) {
         }
       }}
     >
-      <DialogContent className={cn(...dialogProse, "w-157 pt-2")}>
+      <DialogContent
+        className={cn(...dialogProse, "w-[600px] max-w-none pt-2")}
+      >
         <About />
       </DialogContent>
     </Dialog>

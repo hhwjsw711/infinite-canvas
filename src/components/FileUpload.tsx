@@ -17,6 +17,7 @@ import {
 import { useSelectionBox } from "../hooks/useSelectionBox";
 import { useFileHandlers } from "../hooks/useFileHandlers";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { PoweredByConvexBadge } from "./PoweredByConvexBadge";
 
 export const FileUpload: React.FC = () => {
   const [selectedFileIds, setSelectedFileIds] = React.useState<
@@ -143,6 +144,8 @@ export const FileUpload: React.FC = () => {
           onConfirm={handleConfirmDelete}
           fileCount={selectedFileIds.size}
         />
+
+        <PoweredByConvexBadge />
       </div>
     </>
   );
