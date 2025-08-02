@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createContext, useContext } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 
@@ -28,6 +29,12 @@ const DialogOverlay = React.forwardRef<
   />
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
+
+const DialogContext = createContext<boolean>(false);
+
+function useIsWithinDialogContext() {
+  return useContext(DialogContext);
+}
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
@@ -116,4 +123,5 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  useIsWithinDialogContext,
 };

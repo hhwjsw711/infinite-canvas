@@ -133,89 +133,80 @@ export default function HomePage() {
       </header>
 
       {/* Main content area */}
-      <div className="h-full relative z-0">
-        {/* Top gradient fade */}
-        <div
-          className="fixed inset-x-0 top-0 h-32 pointer-events-none z-10"
-          style={{
-            background:
-              "linear-gradient(to bottom, hsl(var(--background)) 0%, hsl(var(--background) / 0.7) 50%, transparent 100%)",
-          }}
-        />
-
-        {/* Bottom gradient fade */}
-        <div
-          className="fixed inset-x-0 bottom-0 h-32 pointer-events-none z-10"
-          style={{
-            background:
-              "linear-gradient(to top, hsl(var(--background)) 0%, hsl(var(--background) / 0.7) 50%, transparent 100%)",
-          }}
-        />
-
-        {/* Scrollable content with grid */}
-        <div className="h-full overflow-y-auto scrollbar-hide pt-24 pb-20 relative">
-          {/* Dotted grid background */}
+      <main className="flex-1 relative flex items-center justify-center w-full">
+        <div className="relative w-full h-full">
+          {/* Gradient Overlays */}
           <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(circle, hsl(var(--primary)) 1px, transparent 1px)`,
-              backgroundSize: "40px 40px",
-              backgroundPosition: "0 0, 20px 20px",
-              opacity: 0.1,
-            }}
+            className="pointer-events-none absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-background to-transparent z-10"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent z-10"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute top-0 bottom-0 left-0 w-24 bg-gradient-to-r from-background to-transparent z-10"
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute top-0 bottom-0 right-0 w-24 bg-gradient-to-l from-background to-transparent z-10"
+            aria-hidden="true"
           />
 
-          {filteredRooms.length === 0 ? (
-            <div className="h-full flex items-center justify-center relative z-10">
-              <p className="text-muted-foreground text-sm">
-                {searchQuery ? "No rooms found" : "No active rooms"}
-              </p>
-            </div>
-          ) : (
-            <div className="w-full px-8 pt-8 pb-4 relative z-10">
-              <div className="inline-grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] gap-4 justify-center w-full">
-                {filteredRooms.map((room) => (
-                  <Link key={room.id} href={`/rooms/${room.id}`}>
-                    <div className="group relative w-[150px] h-[150px] flex flex-col p-3 rounded border border-border hover:border-primary hover:bg-muted/20 transition-colors cursor-pointer overflow-hidden">
-                      {/* Main content */}
-                      <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-                        <h3 className="text-sm font-medium text-center px-2 line-clamp-2">
-                          {room.name || `Room ${room.id.slice(0, 6)}`}
-                        </h3>
-                        <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground relative">
-                          <Users
-                            className={`h-3 w-3 flex-shrink-0 transition-opacity duration-300 ${
-                              room.userCount && room.userCount > 0
-                                ? "opacity-100"
-                                : "opacity-50"
-                            }`}
-                          />
-                          <div className="relative w-3 h-4">
-                            <span
-                              className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+          {/* Scrollable content with grid */}
+          <div className="h-full overflow-y-auto scrollbar-hide pt-24 pb-20 relative">
+            {filteredRooms.length === 0 ? (
+              <div className="h-full flex items-center justify-center relative z-10">
+                <p className="text-muted-foreground text-sm">
+                  {searchQuery ? "No rooms found" : "No active rooms"}
+                </p>
+              </div>
+            ) : (
+              <div className="w-full px-8 pt-8 pb-4 relative z-10">
+                <div className="inline-grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] gap-4 justify-center w-full">
+                  {filteredRooms.map((room) => (
+                    <Link key={room.id} href={`/rooms/${room.id}`}>
+                      <div className="group relative w-[150px] h-[150px] flex flex-col p-3 rounded border border-border hover:border-primary hover:bg-muted/20 transition-colors cursor-pointer overflow-hidden">
+                        {/* Main content */}
+                        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+                          <h3 className="text-sm font-medium text-center px-2 line-clamp-2">
+                            {room.name || `Room ${room.id.slice(0, 6)}`}
+                          </h3>
+                          <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground relative">
+                            <Users
+                              className={`h-3 w-3 flex-shrink-0 transition-opacity duration-300 ${
                                 room.userCount && room.userCount > 0
                                   ? "opacity-100"
                                   : "opacity-50"
                               }`}
-                            >
-                              {room.userCount || 0}
-                            </span>
+                            />
+                            <div className="relative w-3 h-4">
+                              <span
+                                className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${
+                                  room.userCount && room.userCount > 0
+                                    ? "opacity-100"
+                                    : "opacity-50"
+                                }`}
+                              >
+                                {room.userCount || 0}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Footer */}
-                      <div className="text-center text-xs text-muted-foreground mt-auto pt-2">
-                        {formatTimeAgo(room.lastVisited)}
+                        {/* Footer */}
+                        <div className="text-center text-xs text-muted-foreground mt-auto pt-2">
+                          {formatTimeAgo(room.lastVisited)}
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      </main>
 
       {/* Fixed Create button at bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-20 py-4 pb-4">

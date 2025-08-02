@@ -5,6 +5,9 @@ import { focal, hal, halMono, commitMono, inconsolata } from "@/lib/fonts";
 import { BotIdClient } from "botid/client";
 import { Analytics } from "@vercel/analytics/next";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
+import { Intro } from "@/components/intro";
+import { cookies } from "next/headers";
+import { INTRO_SEEN } from "@/lib/storage-keys";
 
 export const metadata: Metadata = {
   title: {
@@ -91,11 +94,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
+  left,
   children,
 }: Readonly<{
+  left: React.ReactNode;
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get(INTRO_SEEN)?.value !== "true";
   return (
     <ConvexAuthNextjsServerProvider>
       <html
@@ -127,7 +134,9 @@ export default function RootLayout({
         <body
           className={`font-sans bg-background text-foreground min-h-screen`}
         >
+          {left}
           <CoreProviders>{children}</CoreProviders>
+          <Intro defaultOpen={defaultOpen} />
         </body>
         <Analytics />
       </html>

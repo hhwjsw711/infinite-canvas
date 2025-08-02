@@ -18,6 +18,7 @@ import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as users from "../users.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   files: typeof files;
   http: typeof http;
+  users: typeof users;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

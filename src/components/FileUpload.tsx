@@ -90,7 +90,7 @@ export const FileUpload: React.FC = () => {
         onMouseDown={handleMouseDown}
         className={`
           min-h-screen pt-20 flex items-center justify-center relative
-          ${isDragActive ? "bg-blue-50" : "bg-gray-50"}
+          ${isDragActive ? "bg-primary/10" : "bg-background"}
           transition-colors duration-200 ease-in-out
         `}
       >
