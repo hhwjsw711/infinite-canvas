@@ -3451,6 +3451,7 @@ export default function OverlayPage() {
               videos={videos}
               viewport={viewport}
               canvasSize={canvasSize}
+              setViewport={setViewport}
             />
           )}
 
