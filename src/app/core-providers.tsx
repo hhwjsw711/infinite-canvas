@@ -14,6 +14,7 @@ import { makeQueryClient } from "@/lib/query-client";
 import { AppRouter } from "@/server/trpc/routers/_app";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
+import ConvexClientProvider from "@/components/ConvexClientProvider";
 
 let browserQueryClient: QueryClient | undefined = undefined;
 
@@ -55,15 +56,17 @@ export function CoreProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <ConvexClientProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </ConvexClientProvider>
       </TRPCProvider>
     </QueryClientProvider>
   );

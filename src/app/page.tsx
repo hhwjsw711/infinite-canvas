@@ -114,6 +114,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { GithubBadge } from "@/components/canvas/GithubBadge";
 import { GenerationsIndicator } from "@/components/generations-indicator";
+import { Footer } from "@/components/footer";
 
 export default function OverlayPage() {
   const { theme, setTheme } = useTheme();
@@ -3470,7 +3471,8 @@ export default function OverlayPage() {
           />
 
           <PoweredByFalBadge />
-          <GithubBadge />
+          {/* <GithubBadge /> */}
+          <Footer />
 
           {/* Dimension display for selected images */}
           <DimensionDisplay
