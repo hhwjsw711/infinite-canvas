@@ -5,7 +5,7 @@ import { useState, useCallback } from "react";
 import { Stage, Layer, Rect, Group, Line } from "react-konva";
 import Konva from "konva";
 import { canvasStorage, type CanvasState } from "@/lib/storage";
-
+import { useAuth } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import {
   X,
@@ -22,6 +22,7 @@ import {
   MonitorIcon,
   SunIcon,
   MoonIcon,
+  LockIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -127,7 +128,7 @@ export default function OverlayPage() {
   );
   const simpsonsStyle = styleModels.find((m) => m.id === "simpsons");
   const { toast } = useToast();
-
+  const { isSignedIn } = useAuth();
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettings>({
       prompt: simpsonsStyle?.prompt || "",
@@ -3409,15 +3410,20 @@ export default function OverlayPage() {
                             variant="primary"
                             size="icon"
                             disabled={
-                              isGenerating || !generationSettings.prompt.trim()
+                              isGenerating ||
+                              !generationSettings.prompt.trim() ||
+                              !isSignedIn
                             }
                             className={cn(
                               "gap-2 font-medium transition-all",
                               isGenerating && "bg-secondary",
+                              !isSignedIn && "opacity-50",
                             )}
                           >
                             {isGenerating ? (
                               <SpinnerIcon className="h-4 w-4 animate-spin" />
+                            ) : !isSignedIn ? (
+                              <LockIcon className="h-4 w-4" />
                             ) : (
                               <PlayIcon className="h-4 w-4" />
                             )}

@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { CoreProviders } from "./core-providers";
 import { focal, hal, halMono, commitMono, inconsolata } from "@/lib/fonts";
 import { BotIdClient } from "botid/client";
 import { Analytics } from "@vercel/analytics/next";
 import { ClerkProvider } from "@clerk/nextjs";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: {
@@ -28,12 +35,6 @@ export const metadata: Metadata = {
   authors: [{ name: "fal.ai" }],
   creator: "fal.ai",
   publisher: "fal.ai",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    viewportFit: "cover",
-  },
   formatDetection: {
     email: false,
     address: false,
