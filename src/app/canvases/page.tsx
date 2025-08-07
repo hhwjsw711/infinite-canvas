@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/icons";
-import { Clock, Plus, Search, X, Trash2, Globe, Lock } from "lucide-react";
+import { Clock, Plus, Trash2, Globe, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -25,9 +25,7 @@ export default function HomePage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [canvasName, setCanvasName] = useState("");
   const [isPublic, setIsPublic] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   const {
@@ -38,19 +36,11 @@ export default function HomePage() {
   } = usePaginatedQuery(
     api.canvases.getRecentCanvases,
     {},
-    { initialNumItems: 50 },
+    { initialNumItems: 12 },
   );
 
   const createCanvas = useAction(api.canvases.createCanvasAction);
-
   const deleteCanvas = useMutation(api.canvases.deleteCanvas);
-
-  // Filter canvases based on search query
-  const filteredCanvases =
-    canvases?.filter((canvas: Doc<"canvases">) => {
-      if (!searchQuery.trim()) return true;
-      return canvas.title.toLowerCase().includes(searchQuery.toLowerCase());
-    }) || [];
 
   const handleCreateCanvas = async () => {
     setIsCreating(true);
@@ -101,34 +91,9 @@ export default function HomePage() {
       <div className="fixed inset-0 bg-background" />
 
       {/* Fixed Header with Logo and Search */}
-      <header className="fixed top-0 left-0 right-0 z-20">
+      <header className="fixed top-0 left-0 right-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="h-16 flex items-center justify-center">
           <Logo className="h-7 w-auto" />
-        </div>
-
-        {/* Search Bar */}
-        <div className="px-4 pb-4">
-          <div className="max-w-sm mx-auto relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search canvases..."
-                className="w-full h-12 pl-10 pr-10 bg-background border border-border rounded-md focus:outline-none focus:border-primary transition-colors"
-              />
-              <button
-                onClick={() => setSearchQuery("")}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-all duration-200 ${
-                  searchQuery ? "opacity-100" : "opacity-0 pointer-events-none"
-                }`}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -154,15 +119,15 @@ export default function HomePage() {
           />
 
           {/* Scrollable content with grid */}
-          <div className="h-full overflow-y-auto scrollbar-hide pt-24 pb-20 relative">
+          <div className="h-full overflow-y-auto scrollbar-hide pt-20 pb-24 relative">
             {/* Dotted grid background */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
                 backgroundImage: `radial-gradient(circle, hsl(var(--primary)) 1px, transparent 1px)`,
-                backgroundSize: "40px 40px",
-                backgroundPosition: "0 0, 20px 20px",
-                opacity: 0.1,
+                backgroundSize: "32px 32px",
+                backgroundPosition: "0 0, 16px 16px",
+                opacity: 0.08,
               }}
             />
 
@@ -170,73 +135,90 @@ export default function HomePage() {
               <div className="h-full flex items-center justify-center relative z-10">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
-            ) : filteredCanvases.length === 0 ? (
+            ) : !canvases || canvases.length === 0 ? (
               <div className="h-full flex items-center justify-center relative z-10">
-                <p className="text-muted-foreground text-sm">
-                  {searchQuery ? "No canvases found" : "No canvases yet"}
-                </p>
+                <div className="text-center space-y-3">
+                  <p className="text-muted-foreground text-lg">
+                    No canvases yet
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    Create your first canvas to get started
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="w-full px-8 pt-8 pb-4 relative z-10">
-                <div className="inline-grid grid-cols-[repeat(auto-fill,minmax(150px,150px))] gap-4 justify-center w-full">
-                  {filteredCanvases.map((canvas: Doc<"canvases">) => (
-                    <Link key={canvas._id} href={`/k/${canvas._id}`}>
-                      <div className="group relative w-[150px] h-[150px] flex flex-col p-3 rounded border border-border hover:border-primary hover:bg-muted/20 transition-colors cursor-pointer overflow-hidden">
-                        {/* Delete button */}
-                        <button
-                          onClick={(e) => handleDelete(e, canvas._id)}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-background/80 backdrop-blur rounded hover:bg-destructive hover:text-destructive-foreground"
-                          disabled={deletingId === canvas._id}
-                        >
-                          {deletingId === canvas._id ? (
-                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
-                        </button>
+              <div className="w-full px-4 sm:px-6 lg:px-8 pt-8 pb-4 relative z-10">
+                <div className="mx-auto max-w-7xl">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+                    {canvases.map((canvas: Doc<"canvases">) => (
+                      <Link key={canvas._id} href={`/k/${canvas._id}`}>
+                        <div className="group relative aspect-square flex flex-col rounded-xl border border-border hover:border-primary hover:bg-muted/30 transition-all duration-200 cursor-pointer overflow-hidden hover:shadow-lg">
+                          {/* Delete button */}
+                          <button
+                            onClick={(e) => handleDelete(e, canvas._id)}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 bg-background/90 backdrop-blur-sm rounded-lg hover:bg-destructive hover:text-destructive-foreground z-10 shadow-sm"
+                            disabled={deletingId === canvas._id}
+                          >
+                            {deletingId === canvas._id ? (
+                              <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
+                          </button>
 
-                        {/* Public/Private indicator */}
-                        <div
-                          className="absolute top-2 left-2"
-                          title={
-                            canvas.isPublic ? "Public canvas" : "Private canvas"
-                          }
-                        >
-                          {canvas.isPublic ? (
-                            <Globe className="h-3 w-3 text-muted-foreground" />
-                          ) : (
-                            <Lock className="h-3 w-3 text-muted-foreground" />
-                          )}
-                        </div>
+                          {/* Public/Private indicator */}
+                          <div
+                            className="absolute top-2 left-2 p-1.5 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm"
+                            title={
+                              canvas.isPublic
+                                ? "Public canvas"
+                                : "Private canvas"
+                            }
+                          >
+                            {canvas.isPublic ? (
+                              <Globe className="h-3 w-3 text-green-600" />
+                            ) : (
+                              <Lock className="h-3 w-3 text-muted-foreground" />
+                            )}
+                          </div>
 
-                        {/* Main content */}
-                        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-                          <h3 className="text-sm font-medium text-center px-2 line-clamp-2">
-                            {canvas.title}
-                          </h3>
-                          <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                            <span>
-                              {formatDistanceToNow(new Date(canvas.updatedAt))}{" "}
-                              ago
-                            </span>
+                          {/* Main content */}
+                          <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-0">
+                            <div className="text-center space-y-2 flex-1 flex flex-col justify-center">
+                              <h3 className="text-sm font-medium line-clamp-2 text-foreground group-hover:text-primary transition-colors">
+                                {canvas.title}
+                              </h3>
+                              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3 flex-shrink-0" />
+                                <span>
+                                  {formatDistanceToNow(
+                                    new Date(canvas.updatedAt),
+                                    {
+                                      addSuffix: true,
+                                    },
+                                  )}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-                {status === "CanLoadMore" && (
-                  <div className="flex justify-center mt-8 pb-4">
-                    <Button
-                      onClick={() => loadMore(50)}
-                      variant="ghost"
-                      className="px-8"
-                    >
-                      Load More
-                    </Button>
+                      </Link>
+                    ))}
                   </div>
-                )}
+
+                  {/* Load More button */}
+                  {status === "CanLoadMore" && (
+                    <div className="flex justify-center mt-8 pb-4">
+                      <Button
+                        onClick={() => loadMore(12)}
+                        variant="ghost"
+                        className="px-8 py-2 bg-background/50 backdrop-blur-sm hover:bg-muted/50"
+                      >
+                        Load More
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -244,12 +226,12 @@ export default function HomePage() {
       </main>
 
       {/* Fixed Create button at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 py-4 pb-4">
+      <div className="fixed bottom-0 left-0 right-0 z-20 py-4 bg-gradient-to-t from-background via-background/80 to-transparent">
         <div className="max-w-sm mx-auto px-4">
           <Button
             onClick={() => setIsDialogOpen(true)}
             size="lg"
-            className="w-full transition-all duration-200 hover:bg-muted/50 active:bg-muted/70"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200"
           >
             <Plus className="mr-2 h-4 w-4" />
             Create Canvas
@@ -300,6 +282,13 @@ export default function HomePage() {
                 onChange={(e) => setCanvasName(e.target.value)}
                 placeholder="Enter canvas name"
                 className="w-full"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isCreating) {
+                    handleCreateCanvas();
+                  }
+                }}
+                autoFocus
+                maxLength={100}
               />
             </div>
 
