@@ -27,6 +27,34 @@ export const authQuery = customQuery(
   }),
 );
 
+export const authAction = customAction(
+  action,
+  customCtx(async (ctx) => {
+    const userId = (await ctx.auth.getUserIdentity())?.subject;
+
+    if (!userId) {
+      throw new ConvexError("must be logged in");
+    }
+
+    const user: any = await ctx.runQuery(internal.users.getUserById, {
+      userId,
+    });
+
+    if (!user) {
+      throw new ConvexError("user not found");
+    }
+
+    const _id: Id<"users"> = user._id;
+
+    return {
+      user: {
+        _id,
+        userId,
+      },
+    };
+  }),
+);
+
 export const authMutation = customMutation(
   mutation,
   customCtx(async (ctx) => ({ user: await getUserOrThrow(ctx) })),
