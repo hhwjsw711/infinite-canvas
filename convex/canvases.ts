@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { QueryCtx, internalMutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
-import { authAction, authMutation } from "./util";
+import { adminAuthMutation, authAction } from "./util";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 
@@ -9,14 +9,18 @@ async function attachUrlToCanvas(ctx: QueryCtx, canvas: Doc<"canvases">) {
   const imagesWithUrl = await Promise.all(
     canvas.stateJson.images.map(async (image) => ({
       ...image,
-      url: image.storageId ? await ctx.storage.getUrl(image.storageId) : null,
+      url: image.cloudImageId
+        ? await ctx.storage.getUrl(image.cloudImageId)
+        : null,
     })),
   );
 
   const videosWithUrl = await Promise.all(
     canvas.stateJson.videos.map(async (video) => ({
       ...video,
-      url: video.storageId ? await ctx.storage.getUrl(video.storageId) : null,
+      url: video.cloudVideoId
+        ? await ctx.storage.getUrl(video.cloudVideoId)
+        : null,
     })),
   );
 
@@ -97,7 +101,7 @@ export const createCanvasAction = authAction({
   },
 });
 
-export const deleteCanvas = authMutation({
+export const deleteCanvas = adminAuthMutation({
   args: { canvasId: v.id("canvases") },
   async handler(ctx, args) {
     await ctx.db.delete(args.canvasId);

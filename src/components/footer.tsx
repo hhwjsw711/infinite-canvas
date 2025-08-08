@@ -14,6 +14,15 @@ export function Footer() {
   return (
     <footer className="text-md fixed bottom-4 right-4 z-20 flex w-min flex-col items-center justify-between font-medium text-primary sm:flex-row">
       <div className="mb-3 flex items-center justify-between space-x-3 sm:mb-0">
+        <Link
+          href={{
+            pathname: "/explore",
+            query: searchParams.toString(),
+          }}
+        >
+          explore
+        </Link>
+        <div>/</div>
         {user != null ? (
           <>
             <div>{user.email}</div>

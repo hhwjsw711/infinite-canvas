@@ -3,10 +3,10 @@ import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
-    // this the Clerk ID, stored in the subject JWT field
-    userId: v.string(),
+    userId: v.string(), // this the Clerk ID, stored in the subject JWT field
     email: v.string(),
     name: v.optional(v.string()),
+    isAdmin: v.optional(v.boolean()),
     profileImage: v.optional(v.string()),
   }).index("by_userId", ["userId"]),
   canvases: defineTable({
@@ -28,7 +28,7 @@ export default defineSchema({
           cropY: v.optional(v.number()),
           cropWidth: v.optional(v.number()),
           cropHeight: v.optional(v.number()),
-          storageId: v.optional(v.id("_storage")),
+          cloudImageId: v.optional(v.id("_storage")), // Reference to cloud storage
         }),
       ),
       videos: v.array(
@@ -45,7 +45,7 @@ export default defineSchema({
           cropY: v.optional(v.number()),
           cropWidth: v.optional(v.number()),
           cropHeight: v.optional(v.number()),
-          storageId: v.optional(v.id("_storage")),
+          cloudVideoId: v.optional(v.id("_storage")), // Reference to cloud storage
           isVideo: v.literal(true),
           duration: v.number(),
           currentTime: v.number(),

@@ -17,7 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { api } from "../../../convex/_generated/api";
-import { useAction, useMutation, usePaginatedQuery } from "convex/react";
+import {
+  useAction,
+  useMutation,
+  usePaginatedQuery,
+  useQuery,
+  useConvexAuth,
+} from "convex/react";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 
 export default function HomePage() {
@@ -37,6 +43,13 @@ export default function HomePage() {
     api.canvases.getRecentCanvases,
     {},
     { initialNumItems: 12 },
+  );
+
+  const { isAuthenticated } = useConvexAuth();
+
+  const user = useQuery(
+    api.users.getMyUser,
+    !isAuthenticated ? "skip" : undefined,
   );
 
   const createCanvas = useAction(api.canvases.createCanvasAction);
@@ -154,17 +167,19 @@ export default function HomePage() {
                       <Link key={canvas._id} href={`/k/${canvas._id}`}>
                         <div className="group relative aspect-square flex flex-col rounded-xl border border-border hover:border-primary hover:bg-muted/30 transition-all duration-200 cursor-pointer overflow-hidden hover:shadow-lg">
                           {/* Delete button */}
-                          <button
-                            onClick={(e) => handleDelete(e, canvas._id)}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 bg-background/90 backdrop-blur-sm rounded-lg hover:bg-destructive hover:text-destructive-foreground z-10 shadow-sm"
-                            disabled={deletingId === canvas._id}
-                          >
-                            {deletingId === canvas._id ? (
-                              <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <Trash2 className="h-3 w-3" />
-                            )}
-                          </button>
+                          {user?.isAdmin && (
+                            <button
+                              onClick={(e) => handleDelete(e, canvas._id)}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 bg-background/90 backdrop-blur-sm rounded-lg hover:bg-destructive hover:text-destructive-foreground z-10 shadow-sm"
+                              disabled={deletingId === canvas._id}
+                            >
+                              {deletingId === canvas._id ? (
+                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </button>
+                          )}
 
                           {/* Public/Private indicator */}
                           <div

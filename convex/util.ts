@@ -12,7 +12,7 @@ import {
   customAction,
 } from "convex-helpers/server/customFunctions";
 import { query } from "./_generated/server";
-import { ConvexError } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -89,6 +89,19 @@ export const adminAuthAction = customAction(
         userId,
       },
     };
+  }),
+);
+
+export const adminAuthMutation = customMutation(
+  mutation,
+  customCtx(async (ctx) => {
+    const user = await getUserOrThrow(ctx);
+
+    if (!user.isAdmin) {
+      throw new ConvexError("must be admin to run this mutation");
+    }
+
+    return { user };
   }),
 );
 
