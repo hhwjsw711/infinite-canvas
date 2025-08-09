@@ -789,7 +789,7 @@ export const appRouter = router({
         // Upload the segmented image to FAL storage
         console.log("Uploading segmented image to storage...");
         const uploadResult = await falClient.storage.upload(
-          new Blob([segmentedImage], { type: "image/png" }),
+          new Blob([new Uint8Array(segmentedImage)], { type: "image/png" }),
         );
 
         // Return the URL of the segmented object

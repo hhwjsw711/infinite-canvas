@@ -12,8 +12,8 @@ export function Footer() {
   const user = useQuery(api.users.getMyUser);
 
   return (
-    <footer className="text-md fixed bottom-4 right-4 z-20 flex w-min flex-col items-center justify-between font-medium text-primary sm:flex-row">
-      <div className="mb-3 flex items-center justify-between space-x-3 sm:mb-0">
+    <footer className="fixed bottom-4 right-4 z-20 hidden sm:block">
+      <nav className="flex items-center space-x-3 text-base font-medium text-primary">
         <Link
           href={{
             pathname: "/explore",
@@ -52,7 +52,7 @@ export function Footer() {
             </Link>
           </>
         )}
-      </div>
+      </nav>
     </footer>
   );
 }
