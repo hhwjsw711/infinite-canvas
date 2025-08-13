@@ -28,7 +28,7 @@ export default defineSchema({
           cropY: v.optional(v.number()),
           cropWidth: v.optional(v.number()),
           cropHeight: v.optional(v.number()),
-          cloudImageId: v.optional(v.id("_storage")), // Reference to cloud storage
+          cloudImageId: v.optional(v.string()), // Reference to cloud storage
         }),
       ),
       videos: v.array(
@@ -45,7 +45,7 @@ export default defineSchema({
           cropY: v.optional(v.number()),
           cropWidth: v.optional(v.number()),
           cropHeight: v.optional(v.number()),
-          cloudVideoId: v.optional(v.id("_storage")), // Reference to cloud storage
+          cloudVideoId: v.optional(v.string()), // Reference to cloud storage
           isVideo: v.literal(true),
           duration: v.number(),
           currentTime: v.number(),
@@ -68,5 +68,10 @@ export default defineSchema({
     isPublic: v.boolean(),
     updatedAt: v.number(),
     lastAccessedAt: v.number(),
+  }).index("by_updatedAt", ["updatedAt"]),
+  files: defineTable({
+    canvasId: v.string(),
+    key: v.string(),
+    url: v.string(),
   }),
 });

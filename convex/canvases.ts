@@ -1,28 +1,42 @@
 import { ConvexError, v } from "convex/values";
 import { QueryCtx, internalMutation, query } from "./_generated/server";
 import { paginationOptsValidator } from "convex/server";
-import { adminAuthMutation, authAction } from "./util";
+import { adminAuthMutation, authAction, authMutation } from "./util";
 import { internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 
-async function attachUrlToCanvas(ctx: QueryCtx, canvas: Doc<"canvases">) {
-  const imagesWithUrl = await Promise.all(
-    canvas.stateJson.images.map(async (image) => ({
-      ...image,
-      url: image.cloudImageId
-        ? await ctx.storage.getUrl(image.cloudImageId)
-        : null,
-    })),
-  );
+export const getCanvas = query({
+  args: { canvasId: v.id("canvases") },
+  handler: async (ctx, args) => {
+    const canvas = await ctx.db.get(args.canvasId);
+    if (!canvas) {
+      throw new ConvexError("Canvas not found");
+    }
+    return await attachUrlToCanvas(ctx, canvas);
+  },
+});
 
-  const videosWithUrl = await Promise.all(
-    canvas.stateJson.videos.map(async (video) => ({
-      ...video,
-      url: video.cloudVideoId
-        ? await ctx.storage.getUrl(video.cloudVideoId)
-        : null,
-    })),
-  );
+function attachUrlToCanvas(ctx: QueryCtx, canvas: Doc<"canvases">) {
+  const r2PublicUrl = process.env.R2_PUBLIC_URL;
+  if (!r2PublicUrl) {
+    throw new Error(
+      "R2_PUBLIC_URL environment variable is not set in Convex dashboard.",
+    );
+  }
+
+  const imagesWithUrl = canvas.stateJson.images.map((image) => ({
+    ...image,
+    url: image.cloudImageId
+      ? `${r2PublicUrl}/${image.cloudImageId}`
+      : image.src,
+  }));
+
+  const videosWithUrl = canvas.stateJson.videos.map((video) => ({
+    ...video,
+    url: video.cloudVideoId
+      ? `${r2PublicUrl}/${video.cloudVideoId}`
+      : video.src,
+  }));
 
   return {
     ...canvas,
@@ -39,6 +53,7 @@ export const getRecentCanvases = query({
   handler: async (ctx, args) => {
     const canvases = await ctx.db
       .query("canvases")
+      .withIndex("by_updatedAt")
       .order("desc")
       .paginate(args.paginationOpts);
 
@@ -105,5 +120,37 @@ export const deleteCanvas = adminAuthMutation({
   args: { canvasId: v.id("canvases") },
   async handler(ctx, args) {
     await ctx.db.delete(args.canvasId);
+  },
+});
+
+export const updateCanvas = authMutation({
+  args: {
+    title: v.optional(v.string()),
+    isPublic: v.optional(v.boolean()),
+    state: v.optional(v.any()),
+    canvasId: v.id("canvases"),
+  },
+  handler: async (ctx, args) => {
+    const canvas = await ctx.db.get(args.canvasId);
+    if (!canvas) {
+      throw new ConvexError("Canvas not found");
+    }
+
+    if (canvas.userId !== ctx.user._id) {
+      throw new ConvexError("You are not authorized to update this canvas.");
+    }
+
+    const { canvasId, ...rest } = args;
+    const updates: Partial<Doc<"canvases">> = {
+      ...rest,
+      updatedAt: Date.now(),
+    };
+
+    if (args.state !== undefined) {
+      updates.stateJson = args.state;
+      delete (updates as any).state;
+    }
+
+    await ctx.db.patch(args.canvasId, updates);
   },
 });

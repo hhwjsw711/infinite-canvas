@@ -12,6 +12,7 @@ export interface PlacedImage {
   cropY?: number;
   cropWidth?: number;
   cropHeight?: number;
+  cloudImageId?: string; // Reference to cloud storage
 }
 
 export interface PlacedVideo extends Omit<PlacedImage, "isGenerated"> {
@@ -24,6 +25,7 @@ export interface PlacedVideo extends Omit<PlacedImage, "isGenerated"> {
   isLooping?: boolean; // Whether the video should loop when it reaches the end
   isGenerating?: boolean; // Similar to isGenerated for images
   isLoaded?: boolean; // Whether the video has loaded its metadata
+  cloudVideoId?: string; // Reference to cloud storage
 }
 
 export interface HistoryState {

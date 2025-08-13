@@ -124,6 +124,8 @@ import { MultiplayerCursors } from "@/components/canvas/multiplayer/MultiplayerC
 import { MultiplayerPanel } from "@/components/canvas/multiplayer/MultiplayerPanel";
 import { ConnectionStatus } from "@/components/canvas/multiplayer/ConnectionStatus";
 import { useMultiplayer } from "@/hooks/use-multiplayer";
+import { useAutoSave } from "@/hooks/use-auto-save";
+import { useFileUploader } from "@/hooks/useFileUploader";
 
 interface CanvasProps {
   roomId: string;
@@ -140,6 +142,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     useState(false);
   const simpsonsStyle = styleModels.find((m) => m.id === "simpsons");
   const { toast } = useToast();
+  const { uploadFile } = useFileUploader();
   const { isSignedIn } = useAuth();
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettings>({
@@ -297,6 +300,37 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     connectionState,
     syncAdapter,
   } = useMultiplayer(propRoomId);
+
+  // Auto-save integration
+  const { updateState: updateAutoSaveState, isSaving } = useAutoSave({
+    canvasId: roomId,
+    enabled: isMultiplayer && !!roomId,
+    debounceMs: 2000,
+    onSaveStart: () => setIsSaving(true),
+    onSaveComplete: () => {
+      setIsSaving(false);
+    },
+    onSaveError: (error) => {
+      setIsSaving(false);
+      toast({
+        title: "Auto-save failed",
+        description:
+          "Your changes may not be saved. Please check your connection.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Trigger auto-save when images or viewport changes
+  useEffect(() => {
+    if (isMultiplayer && roomId && images.length > 0) {
+      updateAutoSaveState({
+        images,
+        videos: [], // Add videos when implemented
+        viewport,
+      });
+    }
+  }, [images, viewport, isMultiplayer, roomId, updateAutoSaveState]);
 
   // Sync viewport changes
   useEffect(() => {
@@ -1325,70 +1359,110 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
   };
 
   // Handle file upload
-  const handleFileUpload = (
+  const handleFileUpload = async (
     files: FileList | null,
     position?: { x: number; y: number },
   ) => {
     if (!files) return;
 
-    Array.from(files).forEach((file, index) => {
+    // Process files sequentially to avoid overwhelming the upload
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
       if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
+        try {
+          const reader = new FileReader();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
           const id = `img-${Date.now()}-${Math.random()}`;
           const img = new window.Image();
           img.crossOrigin = "anonymous"; // Enable CORS
-          img.onload = () => {
-            const aspectRatio = img.width / img.height;
-            const maxSize = 300;
-            let width = maxSize;
-            let height = maxSize / aspectRatio;
 
-            if (height > maxSize) {
-              height = maxSize;
-              width = maxSize * aspectRatio;
-            }
+          await new Promise((resolve, reject) => {
+            img.onload = async () => {
+              const aspectRatio = img.width / img.height;
+              const maxSize = 300;
+              let width = maxSize;
+              let height = maxSize / aspectRatio;
 
-            // Place image at position or center of current viewport
-            let x, y;
-            if (position) {
-              // Convert screen position to canvas coordinates
-              x = (position.x - viewport.x) / viewport.scale - width / 2;
-              y = (position.y - viewport.y) / viewport.scale - height / 2;
-            } else {
-              // Center of viewport
-              const viewportCenterX =
-                (canvasSize.width / 2 - viewport.x) / viewport.scale;
-              const viewportCenterY =
-                (canvasSize.height / 2 - viewport.y) / viewport.scale;
-              x = viewportCenterX - width / 2;
-              y = viewportCenterY - height / 2;
-            }
+              if (height > maxSize) {
+                height = maxSize;
+                width = maxSize * aspectRatio;
+              }
 
-            // Add offset for multiple files
-            if (index > 0) {
-              x += index * 20;
-              y += index * 20;
-            }
+              // Place image at position or center of current viewport
+              let x, y;
+              if (position) {
+                // Convert screen position to canvas coordinates
+                x = (position.x - viewport.x) / viewport.scale - width / 2;
+                y = (position.y - viewport.y) / viewport.scale - height / 2;
+              } else {
+                // Center of viewport
+                const viewportCenterX =
+                  (canvasSize.width / 2 - viewport.x) / viewport.scale;
+                const viewportCenterY =
+                  (canvasSize.height / 2 - viewport.y) / viewport.scale;
+                x = viewportCenterX - width / 2;
+                y = viewportCenterY - height / 2;
+              }
 
-            setImages((prev) => [
-              ...prev,
-              {
+              // Add offset for multiple files
+              if (index > 0) {
+                x += index * 20;
+                y += index * 20;
+              }
+
+              let imageSrc = dataUrl;
+              let cloudImageId: string | undefined;
+
+              // Upload to R2 if we have a room ID (multiplayer mode)
+              if (roomId && isMultiplayer) {
+                try {
+                  const cloudImage = await uploadFile(dataUrl, roomId);
+                  imageSrc = cloudImage.url;
+                  cloudImageId = cloudImage.id;
+                } catch (error) {
+                  // Failed to upload to R2, will use data URL
+                  // Fall back to data URL if upload fails
+                }
+              }
+
+              const newImage: PlacedImage = {
                 id,
-                src: e.target?.result as string,
+                src: imageSrc,
                 x,
                 y,
                 width,
                 height,
                 rotation: 0,
-              },
-            ]);
-          };
-          img.src = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
+                cloudImageId,
+              };
+
+              setImages((prev) => [...prev, newImage]);
+
+              // Notify multiplayer about the new image
+              if (isMultiplayer) {
+                handleImageAdd(newImage);
+              }
+
+              resolve(null);
+            };
+            img.onerror = reject;
+            img.src = dataUrl;
+          });
+        } catch (error) {
+          console.error("[Canvas] Failed to process image:", error);
+          toast({
+            title: "Failed to upload image",
+            description: "Please try again.",
+            variant: "destructive",
+          });
+        }
       }
-    });
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
