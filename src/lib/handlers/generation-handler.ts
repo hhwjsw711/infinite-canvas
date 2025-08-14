@@ -40,8 +40,8 @@ export const uploadImageDirect = async (
 
   try {
     // Check size before attempting upload
-    if (blob.size > 10 * 1024 * 1024) {
-      // 10MB warning
+    if (blob.size > 100 * 1024 * 1024) {
+      // 100MB warning
       console.warn(
         "Large image detected:",
         (blob.size / 1024 / 1024).toFixed(2) + "MB",

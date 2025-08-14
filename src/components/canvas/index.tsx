@@ -288,9 +288,13 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     presenceMap,
     isMultiplayer,
     images: multiplayerImages,
+    viewport: multiplayerViewport,
     handleImageUpdate,
     handleImageAdd,
     handleImageRemove,
+    handleVideoUpdate,
+    handleVideoAdd,
+    handleVideoRemove,
     handleCursorMove,
     handleViewportChange,
     handleGenerationStart,
@@ -300,6 +304,20 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     connectionState,
     syncAdapter,
   } = useMultiplayer(propRoomId);
+
+  useEffect(() => {
+    if (isMultiplayer) {
+      console.log(
+        "[Canvas] Syncing multiplayer images:",
+        multiplayerImages.length,
+      );
+      setImages(multiplayerImages);
+      if (isMultiplayer && multiplayerViewport) {
+        setViewport(multiplayerViewport);
+      }
+      setIsStorageLoaded(true);
+    }
+  }, [isMultiplayer, multiplayerImages, multiplayerViewport]);
 
   // Auto-save integration
   const { updateState: updateAutoSaveState, isSaving } = useAutoSave({
@@ -1147,8 +1165,10 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
 
   // Load from storage on mount
   useEffect(() => {
-    loadFromStorage();
-  }, [loadFromStorage]);
+    if (!isMultiplayer && !isStorageLoaded) {
+      loadFromStorage();
+    }
+  }, [isMultiplayer, isStorageLoaded, loadFromStorage]);
 
   // Auto-save to storage when images change (with debounce)
   useEffect(() => {
@@ -1172,6 +1192,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
   useEffect(() => {
     if (!isStorageLoaded) return;
     if (images.length > 0) return; // Already have images from storage
+    if (isMultiplayer) return;
 
     const loadDefaultImages = async () => {
       const defaultImagePaths = [
@@ -1240,7 +1261,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     };
 
     loadDefaultImages();
-  }, [isStorageLoaded, images.length]);
+  }, [isStorageLoaded, images.length, isMultiplayer]);
 
   // Helper function to resize image if too large
   const resizeImageIfNeeded = async (
@@ -2941,6 +2962,10 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
                                     : img,
                                 ),
                               );
+
+                              if (isMultiplayer) {
+                                handleImageUpdate(image.id, newAttrs);
+                              }
                             }}
                             onDoubleClick={() => {
                               setCroppingImageId(image.id);
@@ -3020,6 +3045,10 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
                                     : vid,
                                 ),
                               );
+
+                              if (isMultiplayer) {
+                                handleVideoUpdate(video.id, newAttrs);
+                              }
                             }}
                             onDragStart={() => {
                               // If dragging a selected item in a multi-selection, keep the selection

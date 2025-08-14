@@ -1,4 +1,4 @@
-import type { PlacedImage } from "@/types/canvas";
+import type { PlacedImage, PlacedVideo } from "@/types/canvas";
 
 export interface ViewportState {
   x: number;
@@ -30,11 +30,15 @@ export interface ChatMessage {
 export interface SyncHandlers {
   onFullSync?: (state: {
     images: PlacedImage[];
+    videos: PlacedVideo[];
     viewport: ViewportState;
   }) => void;
   onImageUpdate?: (image: PlacedImage) => void;
   onImageAdd?: (image: PlacedImage) => void;
   onImageRemove?: (imageId: string) => void;
+  onVideoUpdate?: (video: PlacedVideo) => void;
+  onVideoAdd?: (video: PlacedVideo) => void;
+  onVideoRemove?: (videoId: string) => void;
   onViewportChange?: (userId: string, viewport: ViewportState) => void;
   onPresenceUpdate?: (
     data: PresenceData & { type?: "join" | "leave" | "move" },

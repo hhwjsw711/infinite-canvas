@@ -1,5 +1,5 @@
 import { atom, useAtomValue, useSetAtom } from "jotai";
-import type { PlacedImage } from "@/types/canvas";
+import type { PlacedImage, PlacedVideo } from "@/types/canvas";
 import type {
   ViewportState,
   PresenceData,
@@ -8,6 +8,7 @@ import type {
 
 // Base atoms for state
 export const imagesAtom = atom<PlacedImage[]>([]);
+export const videosAtom = atom<PlacedVideo[]>([]);
 export const viewportAtom = atom<ViewportState>({ x: 0, y: 0, scale: 1 });
 export const presenceMapAtom = atom<Map<string, PresenceData>>(new Map());
 
@@ -57,6 +58,38 @@ export const removeImageAtom = atom(null, (get, set, id: string) => {
   set(
     imagesAtom,
     currentImages.filter((img) => img.id !== id),
+  );
+});
+
+export const setVideosAtom = atom(null, (_get, set, videos: PlacedVideo[]) => {
+  set(videosAtom, videos);
+});
+
+export const updateVideoAtom = atom(
+  null,
+  (
+    get,
+    set,
+    { id, updates }: { id: string; updates: Partial<PlacedVideo> },
+  ) => {
+    const currentVideos = get(videosAtom);
+    const newVideos = currentVideos.map((vid) =>
+      vid.id === id ? { ...vid, ...updates } : vid,
+    );
+    set(videosAtom, newVideos);
+  },
+);
+
+export const addVideoAtom = atom(null, (get, set, video: PlacedVideo) => {
+  const currentVideos = get(videosAtom);
+  set(videosAtom, [...currentVideos, video]);
+});
+
+export const removeVideoAtom = atom(null, (get, set, id: string) => {
+  const currentVideos = get(videosAtom);
+  set(
+    videosAtom,
+    currentVideos.filter((vid) => vid.id !== id),
   );
 });
 

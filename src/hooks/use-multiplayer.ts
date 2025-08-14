@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useSetAtom, useAtomValue, atom } from "jotai";
 import { PartyKitConnection } from "@/lib/multiplayer/adapter";
-import type { PlacedImage } from "@/types/canvas";
+import type { PlacedImage, PlacedVideo } from "@/types/canvas";
 import type { ViewportState } from "@/types/multiplayer";
 import {
   syncAdapterAtom,
@@ -10,14 +10,20 @@ import {
   updateImageAtom,
   addImageAtom,
   removeImageAtom,
+  setVideosAtom,
+  updateVideoAtom,
+  addVideoAtom,
+  removeVideoAtom,
   updatePresenceAtom,
   removePresenceAtom,
   clearPresenceAtom,
   imagesAtom,
+  videosAtom,
   presenceMapAtom,
   chatMessagesAtom,
   setChatMessagesAtom,
   addChatMessageAtom,
+  viewportAtom,
   setViewportAtom,
 } from "@/atoms/multiplayer";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +72,8 @@ export function useMultiplayer(roomId?: string) {
   const storedRoomId = useAtomValue(roomIdAtom);
   const presenceMap = useAtomValue(presenceMapAtom);
   const images = useAtomValue(imagesAtom);
+  const videos = useAtomValue(videosAtom);
+  const viewport = useAtomValue(viewportAtom);
   const chatMessages = useAtomValue(chatMessagesAtom);
 
   // Actions
@@ -73,6 +81,10 @@ export function useMultiplayer(roomId?: string) {
   const updateImage = useSetAtom(updateImageAtom);
   const addImage = useSetAtom(addImageAtom);
   const removeImage = useSetAtom(removeImageAtom);
+  const setVideos = useSetAtom(setVideosAtom);
+  const updateVideo = useSetAtom(updateVideoAtom);
+  const addVideo = useSetAtom(addVideoAtom);
+  const removeVideo = useSetAtom(removeVideoAtom);
   const updatePresence = useSetAtom(updatePresenceAtom);
   const removePresence = useSetAtom(removePresenceAtom);
   const clearPresence = useSetAtom(clearPresenceAtom);
@@ -85,10 +97,20 @@ export function useMultiplayer(roomId?: string) {
   const setFollowingUserId = useSetAtom(followingUserIdAtom);
 
   // Refs for cleanup and throttling
+  const followingUserIdRef = useRef<string | null>(null);
+  const presenceMapRef = useRef(presenceMap);
   const connectionRef = useRef<PartyKitConnection | null>(null);
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  useEffect(() => {
+    followingUserIdRef.current = followingUserId;
+  }, [followingUserId]);
+
+  useEffect(() => {
+    presenceMapRef.current = presenceMap;
+  }, [presenceMap]);
 
   // Connection management with StrictMode fix
   useEffect(() => {
@@ -147,6 +169,7 @@ export function useMultiplayer(roomId?: string) {
       unsubscribe = partyConnection.subscribe({
         onFullSync: (state) => {
           setImages(state.images);
+          setVideos(state.videos);
         },
 
         onImageUpdate: (image) => {
@@ -161,10 +184,22 @@ export function useMultiplayer(roomId?: string) {
           removeImage(imageId);
         },
 
+        onVideoUpdate: (video) => {
+          updateVideo({ id: video.id, updates: video });
+        },
+
+        onVideoAdd: (video) => {
+          addVideo(video);
+        },
+
+        onVideoRemove: (videoId) => {
+          removeVideo(videoId);
+        },
+
         onPresenceUpdate: (data) => {
           if (data.type === "leave") {
             removePresence(data.userId);
-            if (data.userId === followingUserId) {
+            if (data.userId === followingUserIdRef.current) {
               setFollowingUserId(null);
             }
             toast({
@@ -177,7 +212,7 @@ export function useMultiplayer(roomId?: string) {
               data.userId === partyConnection.getConnectionId();
 
             // Skip if we already have this user and it's a join event (not move)
-            const existingUser = presenceMap.get(data.userId);
+            const existingUser = presenceMapRef.current.get(data.userId);
             if (existingUser && data.type === "join") {
               console.log(
                 "[useMultiplayer] User already exists, skipping duplicate join:",
@@ -213,7 +248,7 @@ export function useMultiplayer(roomId?: string) {
 
         onViewportChange: (userId: string, viewport: ViewportState) => {
           // Update user's viewport in presence
-          const user = presenceMap.get(userId);
+          const user = presenceMapRef.current.get(userId);
           if (user) {
             updatePresence({
               userId,
@@ -222,7 +257,7 @@ export function useMultiplayer(roomId?: string) {
           }
 
           // If we're following this user, sync our viewport
-          if (followingUserId === userId) {
+          if (followingUserIdRef.current === userId) {
             setViewport(viewport);
           }
         },
@@ -356,6 +391,63 @@ export function useMultiplayer(roomId?: string) {
     [images, removeImage, connection],
   );
 
+  const handleVideoUpdate = useCallback(
+    async (id: string, updates: Partial<PlacedVideo>) => {
+      // Optimistic update
+      updateVideo({ id, updates });
+
+      // Sync
+      if (connection) {
+        const updatedVideo = videos.find((vid) => vid.id === id);
+        if (updatedVideo) {
+          try {
+            await connection.onVideoUpdate({ ...updatedVideo, ...updates });
+          } catch (error) {
+            console.error("Failed to sync video update:", error);
+            // Revert on failure
+            updateVideo({ id, updates: updatedVideo });
+          }
+        }
+      }
+    },
+    [videos, updateVideo, connection],
+  );
+
+  const handleVideoAdd = useCallback(
+    async (video: PlacedVideo) => {
+      // Optimistic add
+      addVideo(video);
+
+      // Sync if multiplayer
+      if (connection) {
+        try {
+          await connection.onVideoAdd(video);
+        } catch (error) {
+          console.error("Failed to sync video addition:", error);
+          // Remove on failure
+          removeVideo(video.id);
+        }
+      }
+    },
+    [addVideo, removeVideo, connection],
+  );
+
+  const handleVideoRemove = useCallback(
+    (videoId: string) => {
+      // Store removed video for potential revert
+      const removedVideo = videos.find((vid) => vid.id === videoId);
+
+      // Optimistic remove
+      removeVideo(videoId);
+
+      // Sync if multiplayer
+      if (connection) {
+        connection.onVideoRemove(videoId);
+      }
+    },
+    [videos, removeVideo, connection],
+  );
+
   // Store current values in refs to avoid closure issues
   const connectionRefForThrottle = useRef<PartyKitConnection | null>(null);
   const connectionStateRef = useRef(connectionState);
@@ -417,13 +509,22 @@ export function useMultiplayer(roomId?: string) {
     (userId: string | null) => {
       setFollowingUserId(userId);
       if (userId) {
+        const user = presenceMap.get(userId);
+        if (user && user.viewport) {
+          setViewport(user.viewport);
+        }
         toast({
-          description: `Following ${presenceMap.get(userId)?.name || "user"}`,
+          description: `Following ${user?.name || "user"}`,
+          duration: 2000,
+        });
+      } else {
+        toast({
+          description: "Stopped following user",
           duration: 2000,
         });
       }
     },
-    [setFollowingUserId, presenceMap, toast],
+    [setFollowingUserId, presenceMap, setViewport, toast],
   );
 
   // Chat functionality
@@ -442,6 +543,8 @@ export function useMultiplayer(roomId?: string) {
     connectionState,
     presenceMap,
     images,
+    videos,
+    viewport,
     roomId: roomId || storedRoomId, // Use provided roomId or stored one
     chatMessages,
 
@@ -456,6 +559,9 @@ export function useMultiplayer(roomId?: string) {
     handleImageUpdate,
     handleImageAdd,
     handleImageRemove,
+    handleVideoUpdate,
+    handleVideoAdd,
+    handleVideoRemove,
     handleCursorMove,
     handleViewportChange,
     handleGenerationStart,

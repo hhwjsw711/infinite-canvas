@@ -2,7 +2,7 @@ import type { FalClient } from "@fal-ai/client";
 import PartySocket from "partysocket";
 
 import { uploadImageDirect } from "@/lib/handlers/generation-handler";
-import type { PlacedImage } from "@/types/canvas";
+import type { PlacedImage, PlacedVideo } from "@/types/canvas";
 import { PARTYKIT_HOST } from "@/lib/constants";
 
 import type { SyncHandlers, ViewportState } from "@/types/multiplayer";
@@ -29,12 +29,17 @@ interface PendingOperation {
     | "image:add"
     | "image:update"
     | "image:remove"
+    | "video:add"
+    | "video:update"
+    | "video:remove"
     | "viewport:change"
     | "generation:start"
     | "generation:complete";
   data:
     | PlacedImage
+    | PlacedVideo
     | { imageId: string }
+    | { videoId: string }
     | ViewportState
     | { imageId: string; prompt: string };
   timestamp: number;
@@ -140,6 +145,15 @@ export class PartyKitConnection {
       case "image:remove":
         this.handlers.onImageRemove?.(message.data.imageId);
         break;
+      case "video:update":
+        this.handlers.onVideoUpdate?.(message.data);
+        break;
+      case "video:add":
+        this.handlers.onVideoAdd?.(message.data);
+        break;
+      case "video:remove":
+        this.handlers.onVideoRemove?.(message.data.videoId);
+        break;
       case "viewport:change":
         this.handlers.onViewportChange?.(
           message.data.userId,
@@ -198,6 +212,39 @@ export class PartyKitConnection {
       JSON.stringify({
         type: "image:remove",
         data: { imageId },
+      }),
+    );
+  }
+
+  async onVideoAdd(video: PlacedVideo): Promise<void> {
+    // Upload to fal.storage if local file
+    const syncedVideo = await this.ensureVideoUploaded(video);
+
+    this.socket.send(
+      JSON.stringify({
+        type: "video:add",
+        data: syncedVideo,
+      }),
+    );
+  }
+
+  async onVideoUpdate(video: PlacedVideo): Promise<void> {
+    // Upload to fal.storage if local file
+    const syncedVideo = await this.ensureVideoUploaded(video);
+
+    this.socket.send(
+      JSON.stringify({
+        type: "video:update",
+        data: syncedVideo,
+      }),
+    );
+  }
+
+  onVideoRemove(videoId: string): void {
+    this.socket.send(
+      JSON.stringify({
+        type: "video:remove",
+        data: { videoId },
       }),
     );
   }
@@ -271,6 +318,42 @@ export class PartyKitConnection {
       this.options.toast({
         title: "Failed to sync image",
         description: "Image will only be visible locally",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  }
+
+  private async ensureVideoUploaded(video: PlacedVideo): Promise<PlacedVideo> {
+    // Skip if already a URL
+    if (video.src.startsWith("http")) {
+      return video;
+    }
+
+    try {
+      // Upload to fal.storage
+      const uploadResult = await uploadImageDirect(
+        video.src,
+        this.options.falClient,
+        this.options.toast,
+        this.options.setIsApiKeyDialogOpen,
+      );
+
+      if (!uploadResult?.url) {
+        throw new Error(
+          `Upload failed for video ${video.id} (duration: ${video.duration}s) - no URL returned`,
+        );
+      }
+
+      return {
+        ...video,
+        src: uploadResult.url,
+      };
+    } catch (error) {
+      console.error("Failed to upload video for sync:", error);
+      this.options.toast({
+        title: "Failed to sync video",
+        description: "Video will only be visible locally",
         variant: "destructive",
       });
       throw error;

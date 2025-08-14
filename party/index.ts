@@ -1,5 +1,5 @@
 import type * as Party from "partykit/server";
-import type { PlacedImage } from "../src/types/canvas";
+import type { PlacedImage, PlacedVideo } from "../src/types/canvas";
 import type {
   ViewportState,
   PresenceData,
@@ -10,6 +10,7 @@ const MAX_CHAT_MESSAGES = 100;
 
 interface CanvasState {
   images: PlacedImage[];
+  videos: PlacedVideo[];
   viewport: ViewportState;
 }
 
@@ -63,6 +64,7 @@ export default class CanvasRoom implements Party.Server {
               ) {
                 state = {
                   images: convexResponse.value.stateJson.images || [],
+                  videos: convexResponse.value.stateJson.videos || [],
                   viewport: convexResponse.value.stateJson.viewport || {
                     x: 0,
                     y: 0,
@@ -231,6 +233,15 @@ export default class CanvasRoom implements Party.Server {
         await this.updateStorage(event);
         break;
 
+      case "video:update":
+      case "video:add":
+      case "video:remove":
+        // Broadcast to all except sender
+        this.room.broadcast(message, [sender.id]);
+        // Update storage for late joiners
+        await this.updateVideoStorage(event);
+        break;
+
       case "cursor:move":
         // High-frequency, don't persist
         // Update the user's cursor position in presence
@@ -261,8 +272,15 @@ export default class CanvasRoom implements Party.Server {
         break;
 
       case "viewport:change":
-        // Optionally sync viewport changes
-        this.room.broadcast(message, [sender.id]);
+        // Add userId to the message before broadcasting
+        const viewportMessage = {
+          type: "viewport:change",
+          data: {
+            userId: sender.id,
+            viewport: event.data,
+          },
+        };
+        this.room.broadcast(JSON.stringify(viewportMessage), [sender.id]);
         break;
 
       case "chat:send":
@@ -342,6 +360,7 @@ export default class CanvasRoom implements Party.Server {
   }) {
     const state = (await this.room.storage.get<CanvasState>("canvasState")) || {
       images: [],
+      videos: [],
       viewport: { x: 0, y: 0, scale: 1 },
     };
 
@@ -367,6 +386,46 @@ export default class CanvasRoom implements Party.Server {
           const removeData = event.data as { imageId: string };
           state.images = state.images.filter(
             (img) => img.id !== removeData.imageId,
+          );
+        }
+        break;
+    }
+
+    await this.room.storage.put("canvasState", state);
+  }
+
+  private async updateVideoStorage(event: {
+    type: "video:add" | "video:update" | "video:remove";
+    data: PlacedVideo | { videoId: string };
+  }) {
+    const state = (await this.room.storage.get<CanvasState>("canvasState")) || {
+      images: [],
+      videos: [],
+      viewport: { x: 0, y: 0, scale: 1 },
+    };
+
+    switch (event.type) {
+      case "video:add":
+        if ("src" in event.data) {
+          state.videos.push(event.data as PlacedVideo);
+        }
+        break;
+      case "video:update":
+        if ("src" in event.data) {
+          const updateData = event.data as PlacedVideo;
+          const index = state.videos.findIndex(
+            (vid) => vid.id === updateData.id,
+          );
+          if (index !== -1) {
+            state.videos[index] = updateData;
+          }
+        }
+        break;
+      case "video:remove":
+        if ("videoId" in event.data) {
+          const removeData = event.data as { videoId: string };
+          state.videos = state.videos.filter(
+            (vid) => vid.id !== removeData.videoId,
           );
         }
         break;
