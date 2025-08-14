@@ -11,22 +11,34 @@ http.route({
     const payloadString = await request.text();
     const headerPayload = request.headers;
 
+    // Validate required headers
+    const svixId = headerPayload.get("svix-id");
+    const svixTimestamp = headerPayload.get("svix-timestamp");
+    const svixSignature = headerPayload.get("svix-signature");
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.error("Missing required webhook headers");
+      return new Response("Missing required headers", {
+        status: 400,
+      });
+    }
+
     try {
       const result = await ctx.runAction(internal.clerk.fulfill, {
         payload: payloadString,
         headers: {
-          "svix-id": headerPayload.get("svix-id")!,
-          "svix-timestamp": headerPayload.get("svix-timestamp")!,
-          "svix-signature": headerPayload.get("svix-signature")!,
+          "svix-id": svixId,
+          "svix-timestamp": svixTimestamp,
+          "svix-signature": svixSignature,
         },
       });
 
       switch (result.type) {
         case "user.created":
           await ctx.runMutation(internal.users.createUser, {
-            email: result.data.email_addresses[0]?.email_address,
+            email: result.data.email_addresses[0]?.email_address ?? "",
             userId: result.data.id,
-            name: `${result.data.first_name} ${result.data.last_name}`,
+            name: `${result.data.first_name || ""} ${result.data.last_name || ""}`.trim(),
             profileImage: result.data.image_url,
           });
           break;
@@ -34,7 +46,7 @@ http.route({
           await ctx.runMutation(internal.users.updateUser, {
             userId: result.data.id,
             profileImage: result.data.image_url,
-            name: `${result.data.first_name} ${result.data.last_name}`,
+            name: `${result.data.first_name || ""} ${result.data.last_name || ""}`.trim(),
           });
           break;
       }
@@ -43,7 +55,7 @@ http.route({
         status: 200,
       });
     } catch (err) {
-      console.error(err);
+      console.error("Webhook processing error:", err);
       return new Response("Webhook Error", {
         status: 400,
       });

@@ -19,9 +19,13 @@ export const getProfile = query({
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
 
+    if (!user) {
+      throw new ConvexError("User not found");
+    }
+
     return {
-      name: user?.name,
-      profileImage: user?.profileImage,
+      name: user.name,
+      profileImage: user.profileImage,
     };
   },
 });
@@ -30,7 +34,7 @@ export const createUser = internalMutation({
   args: {
     email: v.string(),
     userId: v.string(),
-    name: v.string(),
+    name: v.optional(v.string()),
     profileImage: v.string(),
   },
   handler: async (ctx, args) => {

@@ -36,7 +36,7 @@ export const authAction = customAction(
       throw new ConvexError("must be logged in");
     }
 
-    const user: any = await ctx.runQuery(internal.users.getUserById, {
+    const user = await ctx.runQuery(internal.users.getUserById, {
       userId,
     });
 

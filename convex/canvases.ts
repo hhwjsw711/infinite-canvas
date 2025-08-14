@@ -19,7 +19,7 @@ export const getCanvas = query({
 function attachUrlToCanvas(ctx: QueryCtx, canvas: Doc<"canvases">) {
   const r2PublicUrl = process.env.R2_PUBLIC_URL;
   if (!r2PublicUrl) {
-    throw new Error(
+    throw new ConvexError(
       "R2_PUBLIC_URL environment variable is not set in Convex dashboard.",
     );
   }
@@ -140,7 +140,7 @@ export const updateCanvas = authMutation({
       throw new ConvexError("You are not authorized to update this canvas.");
     }
 
-    const { canvasId, ...rest } = args;
+    const { canvasId, state, ...rest } = args;
     const updates: Partial<Doc<"canvases">> = {
       ...rest,
       updatedAt: Date.now(),
@@ -148,7 +148,6 @@ export const updateCanvas = authMutation({
 
     if (args.state !== undefined) {
       updates.stateJson = args.state;
-      delete (updates as any).state;
     }
 
     await ctx.db.patch(args.canvasId, updates);

@@ -41,29 +41,60 @@ export default class CanvasRoom implements Party.Server {
       // If no state exists, try to load from D1
       if (!state && this.room.id) {
         try {
-          // Fetch canvas from D1 database using tRPC endpoint
-          const response = await fetch(
-            `${this.getApiUrl()}/api/trpc/canvas.get`,
-            {
+          const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+          if (convexUrl) {
+            const response = await fetch(`${convexUrl}/api/query`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                json: { id: this.room.id },
+                path: "canvases:getCanvas",
+                args: { canvasId: this.room.id },
+                format: "json",
               }),
-            },
-          );
-          if (response.ok) {
-            const trpcResponse = await response.json();
-            if (trpcResponse.result?.data?.json?.state) {
-              state = trpcResponse.result.data.json.state as CanvasState;
-              // Store in room storage for future connections
-              await this.room.storage.put("canvasState", state);
+            });
+
+            if (response.ok) {
+              const convexResponse = await response.json();
+              if (
+                convexResponse.status === "success" &&
+                convexResponse.value?.stateJson
+              ) {
+                state = {
+                  images: convexResponse.value.stateJson.images || [],
+                  viewport: convexResponse.value.stateJson.viewport || {
+                    x: 0,
+                    y: 0,
+                    scale: 1,
+                  },
+                };
+                await this.room.storage.put("canvasState", state);
+              } else if (convexResponse.status === "error") {
+                console.error(
+                  `[PartyKit] Convex query error:`,
+                  convexResponse.errorMessage,
+                );
+              } else {
+                console.log(
+                  `[PartyKit] Unexpected response format:`,
+                  convexResponse,
+                );
+              }
+            } else {
+              const errorText = await response.text();
+              console.error(
+                `[PartyKit] HTTP error: ${response.status} ${response.statusText}`,
+                errorText,
+              );
             }
+          } else {
+            console.error(
+              `[PartyKit] NEXT_PUBLIC_CONVEX_URL not found in environment`,
+            );
           }
         } catch (error) {
-          console.error(`[PartyKit] Failed to load canvas from D1:`, error);
+          console.error(`[PartyKit] Failed to load canvas from Convex:`, error);
         }
       }
 
