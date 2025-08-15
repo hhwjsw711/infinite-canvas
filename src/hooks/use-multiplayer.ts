@@ -38,6 +38,15 @@ import {
 } from "@/lib/constants";
 import { useUser } from "@clerk/nextjs";
 
+const SPATIAL_KEYS = ["x", "y", "width", "height", "rotation"] as const;
+const pickSpatial = (obj: Partial<PlacedVideo>): Partial<PlacedVideo> => {
+  const out: Partial<PlacedVideo> = {};
+  for (const k of SPATIAL_KEYS) {
+    if (k in obj) (out as any)[k] = (obj as any)[k];
+  }
+  return out;
+};
+
 // Connection state atom
 export type ConnectionState =
   | "connecting"
@@ -104,6 +113,11 @@ export function useMultiplayer(roomId?: string) {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
+  const videosRef = useRef(videos);
+  useEffect(() => {
+    videosRef.current = videos;
+  }, [videos]);
+
   useEffect(() => {
     followingUserIdRef.current = followingUserId;
   }, [followingUserId]);
@@ -114,6 +128,8 @@ export function useMultiplayer(roomId?: string) {
 
   // Connection management with StrictMode fix
   useEffect(() => {
+    mountedRef.current = true;
+
     // Skip if no roomId provided (child components just accessing state)
     if (!roomId) {
       return;
@@ -169,7 +185,13 @@ export function useMultiplayer(roomId?: string) {
       unsubscribe = partyConnection.subscribe({
         onFullSync: (state) => {
           setImages(state.images);
-          setVideos(state.videos);
+          const merged = state.videos.map((srv) => {
+            const local = videosRef.current.find((v) => v.id === srv.id);
+            return local
+              ? { ...local, ...pickSpatial(srv), src: srv.src || local.src }
+              : srv;
+          });
+          setVideos(merged);
         },
 
         onImageUpdate: (image) => {
@@ -185,7 +207,7 @@ export function useMultiplayer(roomId?: string) {
         },
 
         onVideoUpdate: (video) => {
-          updateVideo({ id: video.id, updates: video });
+          updateVideo({ id: video.id, updates: pickSpatial(video) });
         },
 
         onVideoAdd: (video) => {
@@ -393,22 +415,16 @@ export function useMultiplayer(roomId?: string) {
 
   const handleVideoUpdate = useCallback(
     async (id: string, updates: Partial<PlacedVideo>) => {
-      const spatialProps = ["x", "y", "width", "height", "rotation"];
-      const hasSpatialChanges = Object.keys(updates).some((key) =>
-        spatialProps.includes(key),
-      );
+      const spatialOnly = pickSpatial(updates);
+      if (Object.keys(spatialOnly).length === 0) return;
 
-      if (!hasSpatialChanges) {
-        return;
-      }
-
-      updateVideo({ id, updates });
+      updateVideo({ id, updates: spatialOnly });
 
       if (connection) {
         const updatedVideo = videos.find((vid) => vid.id === id);
         if (updatedVideo) {
           try {
-            await connection.onVideoUpdate({ ...updatedVideo, ...updates });
+            await connection.onVideoUpdate({ ...updatedVideo, ...spatialOnly });
           } catch (error) {
             console.error("Failed to sync video update:", error);
             updateVideo({ id, updates: updatedVideo });

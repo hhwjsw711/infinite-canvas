@@ -51,7 +51,6 @@ import {
 } from "@/components/ui/dialog";
 import { styleModels } from "@/lib/models";
 import { useToast } from "@/hooks/use-toast";
-import { createFalClient } from "@fal-ai/client";
 
 // Import extracted components
 import { ShortcutBadge } from "@/components/canvas/ShortcutBadge";
@@ -192,6 +191,9 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     scale: 1,
   });
   const stageRef = useRef<Konva.Stage>(null);
+  const hasAppliedInitialViewportRef = useRef(false);
+  const shouldSkipNextViewportBroadcastRef = useRef(false);
+  const lastCursorSentAtRef = useRef(0);
   const [isolateTarget, setIsolateTarget] = useState<string | null>(null);
   const [isolateInputValue, setIsolateInputValue] = useState("");
   const [isIsolating, setIsIsolating] = useState(false);
@@ -231,6 +233,48 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
   const [tempApiKey, setTempApiKey] = useState<string>("");
   const [_, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  const SPATIAL_KEYS = useMemo(
+    () => ["x", "y", "width", "height", "rotation"] as const,
+    [],
+  );
+  const RUNTIME_KEYS = useMemo(
+    () => ["currentTime", "isPlaying", "volume", "muted", "isLooping"] as const,
+    [],
+  );
+
+  const pickSpatial = useCallback(
+    (obj: Partial<PlacedVideo>) => {
+      const out: Partial<PlacedVideo> = {};
+      SPATIAL_KEYS.forEach((k) => {
+        if (k in obj) (out as any)[k] = (obj as any)[k];
+      });
+      return out;
+    },
+    [SPATIAL_KEYS],
+  );
+
+  const pickRuntime = useCallback(
+    (obj: Partial<PlacedVideo>) => {
+      const out: Partial<PlacedVideo> = {};
+      RUNTIME_KEYS.forEach((k) => {
+        if (k in obj) (out as any)[k] = (obj as any)[k];
+      });
+      return out;
+    },
+    [RUNTIME_KEYS],
+  );
+
+  const lastRuntimeAtRef = useRef<Map<string, number>>(new Map());
+  const acceptRuntimeUpdate = useCallback((id: string, windowMs = 120) => {
+    const now = performance.now();
+    const last = lastRuntimeAtRef.current.get(id) ?? 0;
+    if (now - last >= windowMs) {
+      lastRuntimeAtRef.current.set(id, now);
+      return true;
+    }
+    return false;
+  }, []);
 
   // Touch event states for mobile
   const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(
@@ -307,6 +351,11 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
   } = useMultiplayer(propRoomId);
 
   useEffect(() => {
+    hasAppliedInitialViewportRef.current = false;
+    shouldSkipNextViewportBroadcastRef.current = false;
+  }, [roomId]);
+
+  useEffect(() => {
     if (isMultiplayer) {
       console.log(
         "[Canvas] Syncing multiplayer images:",
@@ -318,8 +367,16 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
       );
       setImages(multiplayerImages);
       setVideos(multiplayerVideos);
-      if (isMultiplayer && multiplayerViewport) {
+      if (
+        multiplayerViewport &&
+        (!hasAppliedInitialViewportRef.current || !!followingUserId) &&
+        !isDraggingImage &&
+        !isSelecting &&
+        !isPanningCanvas
+      ) {
+        shouldSkipNextViewportBroadcastRef.current = true;
         setViewport(multiplayerViewport);
+        hasAppliedInitialViewportRef.current = true;
       }
       setIsStorageLoaded(true);
     }
@@ -328,6 +385,10 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     multiplayerImages,
     multiplayerVideos,
     multiplayerViewport,
+    followingUserId,
+    isDraggingImage,
+    isSelecting,
+    isPanningCanvas,
   ]);
 
   // Auto-save integration
@@ -385,6 +446,10 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
 
   // Sync viewport changes
   useEffect(() => {
+    if (shouldSkipNextViewportBroadcastRef.current) {
+      shouldSkipNextViewportBroadcastRef.current = false;
+      return;
+    }
     if (!followingUserId) {
       handleViewportChange(viewport);
     }
@@ -454,7 +519,6 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
       // Get video model name for toast display
       let modelName = "Video Model";
       const modelId = settings.modelId || "ltx-video"; // Default to ltx-video
-      const { getVideoModelById } = await import("@/lib/video-models");
       const model = getVideoModelById(modelId);
       if (model) {
         modelName = model.name;
@@ -535,7 +599,6 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
       // Get video model name for toast display
       let modelName = "Video Model";
       const modelId = settings.modelId || "seedance-pro";
-      const { getVideoModelById } = await import("@/lib/video-models");
       const model = getVideoModelById(modelId);
       if (model) {
         modelName = model.name;
@@ -627,7 +690,6 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
       // Get video model name for toast display
       let modelName = "Video Model";
       const modelId = settings.modelId || "seedance-pro";
-      const { getVideoModelById } = await import("@/lib/video-models");
       const model = getVideoModelById(modelId);
       if (model) {
         modelName = model.name;
@@ -679,6 +741,19 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
         duration,
       });
 
+      let appliedUrl = videoUrl;
+      let cloudVideoId: string | undefined;
+      if (roomId && isMultiplayer) {
+        try {
+          const dataUrl = await fetchAsDataUrl(videoUrl);
+          const cloud = await uploadFile(dataUrl, roomId);
+          appliedUrl = cloud.url;
+          cloudVideoId = cloud.id;
+        } catch (e) {
+          console.warn("[R2] video upload failed, using original url:", e);
+        }
+      }
+
       // Get the generation data to check for source image ID
       const generation = activeVideoGenerations.get(videoId);
       const sourceImageId = generation?.sourceImageId || selectedImageForVideo;
@@ -708,7 +783,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
           // Create a video element based on the original image
           const video = convertImageToVideo(
             image,
-            videoUrl,
+            appliedUrl,
             duration,
             false, // Don't replace the original image
           );
@@ -718,8 +793,22 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
           video.x = image.x + image.width + 20;
           video.y = image.y; // Keep the same vertical position
 
+          const placed = {
+            ...video,
+            isVideo: true as const,
+            ...(cloudVideoId && { cloudVideoId }),
+          };
+
           // Add the video to the videos state
-          setVideos((prev) => [...prev, { ...video, isVideo: true as const }]);
+          setVideos((prev) => [...prev, placed]);
+
+          if (isMultiplayer) {
+            try {
+              handleVideoAdd(placed);
+            } catch (e) {
+              console.error("[Multiplayer] video add failed:", video.id, e);
+            }
+          }
 
           // Save to history
           saveToHistory();
@@ -752,8 +841,8 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
             // Create a new video based on the source video
             const newVideo: PlacedVideo = {
               id: `video_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-              src: videoUrl,
-              x: sourceVideo.x + sourceVideo.width + 20, // Position to the right
+              src: appliedUrl,
+              x: sourceVideo.x + sourceVideo.width + 20,
               y: sourceVideo.y,
               width: sourceVideo.width,
               height: sourceVideo.height,
@@ -765,10 +854,22 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
               muted: false,
               isLooping: false,
               isVideo: true as const,
+              ...(cloudVideoId && { cloudVideoId }),
             };
 
-            // Add the transformed video to the canvas
             setVideos((prev) => [...prev, newVideo]);
+
+            if (isMultiplayer) {
+              try {
+                handleVideoAdd(newVideo);
+              } catch (e) {
+                console.error(
+                  "[Multiplayer] video add failed:",
+                  newVideo.id,
+                  e,
+                );
+              }
+            }
 
             // Save to history
             saveToHistory();
@@ -795,11 +896,10 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
               });
             }
           } else {
-            console.error("Source video not found:", sourceVideoId);
+            console.log("Generated video URL:", appliedUrl);
             toast({
-              title: "Error creating video",
-              description: "The source video could not be found.",
-              variant: "destructive",
+              title: "Video generated",
+              description: "Video is ready but cannot be placed on canvas yet.",
             });
           }
         }
@@ -1412,6 +1512,17 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     });
   };
 
+  const fetchAsDataUrl = async (url: string): Promise<string> => {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
   // Handle file upload
   const handleFileUpload = async (
     files: FileList | null,
@@ -1920,10 +2031,14 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
       if (pointerPosition) {
         // Convert screen coordinates to canvas coordinates
         const canvasPosition = {
-          x: viewport.x + pointerPosition.x / viewport.scale,
-          y: viewport.y + pointerPosition.y / viewport.scale,
+          x: (pointerPosition.x - viewport.x) / viewport.scale,
+          y: (pointerPosition.y - viewport.y) / viewport.scale,
         };
-        handleCursorMove(canvasPosition);
+        const now = performance.now();
+        if (now - lastCursorSentAtRef.current >= 16) {
+          lastCursorSentAtRef.current = now;
+          handleCursorMove(canvasPosition);
+        }
       }
     }
 
@@ -2014,7 +2129,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     }
 
     setIsSelecting(false);
-    setSelectionBox({ ...selectionBox, visible: false });
+    setSelectionBox((prev) => ({ ...prev, visible: false }));
   };
 
   // Note: Overlapping detection has been removed in favor of explicit "Combine Images" action
@@ -2043,9 +2158,34 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
   const handleDelete = () => {
     // Save to history before deleting
     saveToHistory();
+
+    const imageIdsToDelete = images
+      .filter((img) => selectedIds.includes(img.id))
+      .map((img) => img.id);
+    const videoIdsToDelete = videos
+      .filter((vid) => selectedIds.includes(vid.id))
+      .map((vid) => vid.id);
+
     setImages((prev) => prev.filter((img) => !selectedIds.includes(img.id)));
     setVideos((prev) => prev.filter((vid) => !selectedIds.includes(vid.id)));
     setSelectedIds([]);
+
+    if (isMultiplayer) {
+      imageIdsToDelete.forEach((id) => {
+        try {
+          handleImageRemove(id);
+        } catch (e) {
+          console.error("[Multiplayer] image remove failed:", id, e);
+        }
+      });
+      videoIdsToDelete.forEach((id) => {
+        try {
+          handleVideoRemove(id);
+        } catch (e) {
+          console.error("[Multiplayer] video remove failed:", id, e);
+        }
+      });
+    }
   };
 
   const handleDuplicate = () => {
@@ -2874,27 +3014,71 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
             );
           }}
           onComplete={(id, finalUrl) => {
-            setImages((prev) =>
-              prev.map((img) =>
-                img.id === id ? { ...img, src: finalUrl } : img,
-              ),
-            );
-            setActiveGenerations((prev) => {
-              const newMap = new Map(prev);
-              newMap.delete(id);
-              return newMap;
-            });
-            setIsGenerating(false);
+            void (async () => {
+              let appliedUrl = finalUrl;
+              let cloudImageId: string | undefined;
 
-            // Immediately save after generation completes
-            setTimeout(() => {
-              saveToStorage();
-            }, 100); // Small delay to ensure state updates are processed
+              if (roomId && isMultiplayer) {
+                try {
+                  const dataUrl = await fetchAsDataUrl(finalUrl);
+                  const cloud = await uploadFile(dataUrl, roomId);
+                  appliedUrl = cloud.url;
+                  cloudImageId = cloud.id;
+                } catch (e) {
+                  console.warn(
+                    "[R2] image upload failed, using original url:",
+                    e,
+                  );
+                }
+              }
+
+              setImages((prev) =>
+                prev.map((img) =>
+                  img.id === id
+                    ? {
+                        ...img,
+                        src: appliedUrl,
+                        ...(cloudImageId && { cloudImageId }),
+                      }
+                    : img,
+                ),
+              );
+
+              if (isMultiplayer) {
+                try {
+                  handleImageUpdate(id, {
+                    src: appliedUrl,
+                    ...(cloudImageId && { cloudImageId }),
+                  });
+                } catch (e) {
+                  console.error("[Multiplayer] image update failed:", id, e);
+                }
+              }
+
+              setActiveGenerations((prev) => {
+                const newMap = new Map(prev);
+                newMap.delete(id);
+                return newMap;
+              });
+              setIsGenerating(false);
+
+              // Immediately save after generation completes
+              setTimeout(() => {
+                saveToStorage();
+              }, 100);
+            })();
           }}
           onError={(id, error) => {
             console.error(`Generation error for ${id}:`, error);
             // Remove the failed image
             setImages((prev) => prev.filter((img) => img.id !== id));
+            if (isMultiplayer) {
+              try {
+                handleImageRemove(id);
+              } catch (e) {
+                console.error("[Multiplayer] image remove failed:", id, e);
+              }
+            }
             setActiveGenerations((prev) => {
               const newMap = new Map(prev);
               newMap.delete(id);
@@ -3182,16 +3366,40 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
                             isSelected={selectedIds.includes(video.id)}
                             onSelect={(e) => handleSelect(video.id, e)}
                             onChange={(newAttrs) => {
-                              setVideos((prev) =>
-                                prev.map((vid) =>
-                                  vid.id === video.id
-                                    ? { ...vid, ...newAttrs }
-                                    : vid,
-                                ),
+                              const spatialUpdates = pickSpatial(
+                                newAttrs as Partial<PlacedVideo>,
                               );
+                              const runtimeUpdates = pickRuntime(
+                                newAttrs as Partial<PlacedVideo>,
+                              );
+                              const hasSpatial =
+                                Object.keys(spatialUpdates).length > 0;
+                              const hasRuntime =
+                                Object.keys(runtimeUpdates).length > 0;
 
-                              if (isMultiplayer) {
-                                handleVideoUpdate(video.id, newAttrs);
+                              if (
+                                hasSpatial ||
+                                (hasRuntime && acceptRuntimeUpdate(video.id))
+                              ) {
+                                setVideos((prev) =>
+                                  prev.map((vid) =>
+                                    vid.id === video.id
+                                      ? {
+                                          ...vid,
+                                          ...(hasSpatial
+                                            ? spatialUpdates
+                                            : null),
+                                          ...(hasRuntime
+                                            ? runtimeUpdates
+                                            : null),
+                                        }
+                                      : vid,
+                                  ),
+                                );
+                              }
+
+                              if (hasSpatial && isMultiplayer) {
+                                handleVideoUpdate(video.id, spatialUpdates);
                               }
                             }}
                             onDragStart={() => {
