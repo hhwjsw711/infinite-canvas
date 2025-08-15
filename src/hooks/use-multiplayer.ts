@@ -393,10 +393,17 @@ export function useMultiplayer(roomId?: string) {
 
   const handleVideoUpdate = useCallback(
     async (id: string, updates: Partial<PlacedVideo>) => {
-      // Optimistic update
+      const spatialProps = ["x", "y", "width", "height", "rotation"];
+      const hasSpatialChanges = Object.keys(updates).some((key) =>
+        spatialProps.includes(key),
+      );
+
+      if (!hasSpatialChanges) {
+        return;
+      }
+
       updateVideo({ id, updates });
 
-      // Sync
       if (connection) {
         const updatedVideo = videos.find((vid) => vid.id === id);
         if (updatedVideo) {
@@ -404,7 +411,6 @@ export function useMultiplayer(roomId?: string) {
             await connection.onVideoUpdate({ ...updatedVideo, ...updates });
           } catch (error) {
             console.error("Failed to sync video update:", error);
-            // Revert on failure
             updateVideo({ id, updates: updatedVideo });
           }
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Stage, Layer, Rect, Group, Line } from "react-konva";
 import Konva from "konva";
 import { canvasStorage, type CanvasState } from "@/lib/storage";
@@ -350,16 +350,38 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     },
   });
 
+  const videosForSaving = useMemo(() => {
+    return videos.map((video) => ({
+      ...video,
+      currentTime: 0,
+      isPlaying: false,
+    }));
+  }, [
+    videos
+      .map(
+        (v) =>
+          `${v.id}-${v.src}-${v.x}-${v.y}-${v.width}-${v.height}-${v.rotation}-${v.duration}-${v.cloudVideoId || ""}`,
+      )
+      .join("|"),
+  ]);
+
   // Trigger auto-save when images or viewport changes
   useEffect(() => {
     if (isMultiplayer && roomId && (images.length > 0 || videos.length > 0)) {
       updateAutoSaveState({
         images,
-        videos,
+        videos: videosForSaving,
         viewport,
       });
     }
-  }, [images, videos, viewport, isMultiplayer, roomId, updateAutoSaveState]);
+  }, [
+    images,
+    videosForSaving,
+    viewport,
+    isMultiplayer,
+    roomId,
+    updateAutoSaveState,
+  ]);
 
   // Sync viewport changes
   useEffect(() => {
