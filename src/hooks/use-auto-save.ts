@@ -107,6 +107,48 @@ export function useAutoSave({
     [canvasId, uploadFile],
   );
 
+  // Upload videos that haven't been uploaded yet
+  const uploadPendingVideos = useCallback(
+    async (videos: PlacedVideo[]) => {
+      if (!canvasId) return videos;
+
+      const uploadPromises = videos.map(async (video) => {
+        // Skip if already uploaded or is a placeholder
+        if (
+          video.cloudVideoId ||
+          video.src.startsWith("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP")
+        ) {
+          return video;
+        }
+
+        // Skip if it's already a cloud URL
+        if (!video.src.startsWith("data:") && !video.src.startsWith("blob:")) {
+          return video;
+        }
+
+        try {
+          const cloudVideo = await uploadFile(video.src, canvasId);
+          return {
+            ...video,
+            src: cloudVideo.url,
+            cloudVideoId: cloudVideo.id,
+          };
+        } catch (error) {
+          logError(error, {
+            context: "uploadPendingVideos",
+            videoId: video.id,
+            canvasId,
+          });
+          // Return original video if upload fails
+          return video;
+        }
+      });
+
+      return Promise.all(uploadPromises);
+    },
+    [canvasId, uploadFile],
+  );
+
   // Save function with offline support
   const performSave = useCallback(async () => {
     if (!canvasId || !userId || !saveStateRef.current || isSaving) {
@@ -153,13 +195,14 @@ export function useAutoSave({
 
       // Upload any pending images
       const cloudImages = await uploadPendingImages(state.images);
+      const cloudVideos = await uploadPendingVideos(state.videos);
 
       // Update canvas state in D1
       await updateCanvas({
         canvasId: canvasId as Id<"canvases">,
         state: {
           images: cloudImages,
-          videos: state.videos,
+          videos: cloudVideos,
           viewport: state.viewport,
           version: "1.0.0",
         },
@@ -181,6 +224,7 @@ export function useAutoSave({
     userId,
     isSaving,
     uploadPendingImages,
+    uploadPendingVideos,
     updateCanvas,
     onSaveStart,
     onSaveError,

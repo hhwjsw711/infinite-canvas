@@ -288,6 +288,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
     presenceMap,
     isMultiplayer,
     images: multiplayerImages,
+    videos: multiplayerVideos,
     viewport: multiplayerViewport,
     handleImageUpdate,
     handleImageAdd,
@@ -311,13 +312,23 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
         "[Canvas] Syncing multiplayer images:",
         multiplayerImages.length,
       );
+      console.log(
+        "[Canvas] Syncing multiplayer videos:",
+        multiplayerVideos.length,
+      );
       setImages(multiplayerImages);
+      setVideos(multiplayerVideos);
       if (isMultiplayer && multiplayerViewport) {
         setViewport(multiplayerViewport);
       }
       setIsStorageLoaded(true);
     }
-  }, [isMultiplayer, multiplayerImages, multiplayerViewport]);
+  }, [
+    isMultiplayer,
+    multiplayerImages,
+    multiplayerVideos,
+    multiplayerViewport,
+  ]);
 
   // Auto-save integration
   const { updateState: updateAutoSaveState, isSaving } = useAutoSave({
@@ -341,14 +352,14 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
 
   // Trigger auto-save when images or viewport changes
   useEffect(() => {
-    if (isMultiplayer && roomId && images.length > 0) {
+    if (isMultiplayer && roomId && (images.length > 0 || videos.length > 0)) {
       updateAutoSaveState({
         images,
-        videos: [], // Add videos when implemented
+        videos,
         viewport,
       });
     }
-  }, [images, viewport, isMultiplayer, roomId, updateAutoSaveState]);
+  }, [images, videos, viewport, isMultiplayer, roomId, updateAutoSaveState]);
 
   // Sync viewport changes
   useEffect(() => {
@@ -1398,7 +1409,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
             reader.readAsDataURL(file);
           });
 
-          const id = `img-${Date.now()}-${Math.random()}`;
+          const id = `img-${Date.now()}-${Math.random().toString(36).substring(7)}`;
           const img = new window.Image();
           img.crossOrigin = "anonymous"; // Enable CORS
 
@@ -1479,6 +1490,117 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
           toast({
             title: "Failed to upload image",
             description: "Please try again.",
+            variant: "destructive",
+          });
+        }
+      } else if (file.type.startsWith("video/")) {
+        try {
+          const reader = new FileReader();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          const id = `vid-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+          const video = document.createElement("video");
+          video.crossOrigin = "anonymous";
+
+          await new Promise((resolve, reject) => {
+            video.onloadedmetadata = async () => {
+              const aspectRatio = video.videoWidth / video.videoHeight;
+              const maxSize = 300;
+              let width = maxSize;
+              let height = maxSize / aspectRatio;
+
+              if (height > maxSize) {
+                height = maxSize;
+                width = maxSize * aspectRatio;
+              }
+
+              // Place video at position or center of current viewport
+              let x, y;
+              if (position) {
+                // Convert screen position to canvas coordinates
+                x = (position.x - viewport.x) / viewport.scale - width / 2;
+                y = (position.y - viewport.y) / viewport.scale - height / 2;
+              } else {
+                // Center of viewport
+                const viewportCenterX =
+                  (canvasSize.width / 2 - viewport.x) / viewport.scale;
+                const viewportCenterY =
+                  (canvasSize.height / 2 - viewport.y) / viewport.scale;
+                x = viewportCenterX - width / 2;
+                y = viewportCenterY - height / 2;
+              }
+
+              // Add offset for multiple files
+              if (index > 0) {
+                x += index * 20;
+                y += index * 20;
+              }
+
+              let videoSrc = dataUrl;
+              let cloudVideoId: string | undefined;
+
+              // Upload to R2 if we have a room ID (multiplayer mode)
+              if (roomId && isMultiplayer) {
+                try {
+                  const cloudVideo = await uploadFile(dataUrl, roomId);
+                  videoSrc = cloudVideo.url;
+                  cloudVideoId = cloudVideo.id;
+                } catch (error) {
+                  // Failed to upload to R2, will use data URL
+                  console.warn("Failed to upload video to cloud:", error);
+                }
+              }
+
+              const newVideo: PlacedVideo = {
+                id,
+                src: videoSrc,
+                x,
+                y,
+                width,
+                height,
+                rotation: 0,
+                isVideo: true,
+                duration: video.duration || 0,
+                currentTime: 0,
+                isPlaying: false,
+                volume: 1,
+                muted: false,
+                isLooping: false,
+                isLoaded: true,
+                cloudVideoId,
+              };
+
+              setVideos((prev) => [...prev, newVideo]);
+
+              // Notify multiplayer about the new video
+              if (isMultiplayer) {
+                handleVideoAdd(newVideo);
+              }
+
+              toast({
+                title: "Video uploaded",
+                description: `${file.name} has been added to the canvas`,
+                duration: 3000,
+              });
+
+              resolve(null);
+            };
+
+            video.onerror = () => {
+              reject(new Error("Failed to load video metadata"));
+            };
+
+            video.src = dataUrl;
+          });
+        } catch (error) {
+          console.error("[Canvas] Failed to process video:", error);
+          toast({
+            title: "Failed to upload video",
+            description: "Please try again with a supported video format.",
             variant: "destructive",
           });
         }
@@ -3619,7 +3741,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
                               // Create file input with better mobile support
                               const input = document.createElement("input");
                               input.type = "file";
-                              input.accept = "image/*";
+                              input.accept = "image/*,video/*";
                               input.multiple = true;
 
                               // Add to DOM for mobile compatibility
@@ -3691,7 +3813,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
                                 }
                               }, 30000); // 30 second cleanup
                             }}
-                            title="Upload images"
+                            title="Upload images and videos"
                           >
                             <Paperclip className="h-4 w-4" />
                           </Button>

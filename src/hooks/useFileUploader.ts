@@ -19,7 +19,7 @@ export function useFileUploader() {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
 
       // Then generate upload URL and upload the file
-      const { url, imageUrl, key } = await generateUploadUrl({
+      const { url, fileUrl, key } = await generateUploadUrl({
         canvasId,
         fileName,
       });
@@ -39,19 +39,19 @@ export function useFileUploader() {
 
       await syncMetadata({ key });
 
-      const fileId = await createFile({ canvasId, key, url: imageUrl });
+      const fileId = await createFile({ canvasId, key, url: fileUrl });
 
-      // Register the image in the database
-      const imageId = `image-${fileId}`;
+      const fileType = mimeType.startsWith("video/") ? "video" : "image";
+      const typedFileId = `${fileType}-${fileId}`;
 
       return {
-        id: imageId,
-        url: imageUrl,
+        id: typedFileId,
+        url: fileUrl,
         key,
       };
     } catch (error) {
       logError(error, {
-        context: "uploadImageToR2",
+        context: "uploadFileToR2",
         canvasId,
         dataUrlSize: dataUrl.length,
       });
