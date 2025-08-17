@@ -10,8 +10,10 @@
 
 import type * as canvases from "../canvases.js";
 import type * as clerk from "../clerk.js";
+import type * as credits from "../credits.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
 import type * as util from "../util.js";
 
@@ -32,8 +34,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   canvases: typeof canvases;
   clerk: typeof clerk;
+  credits: typeof credits;
   files: typeof files;
   http: typeof http;
+  stripe: typeof stripe;
   users: typeof users;
   util: typeof util;
 }>;

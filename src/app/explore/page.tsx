@@ -244,9 +244,9 @@ export default function HomePage() {
       <div className="fixed bottom-0 left-0 right-0 z-20 py-4 bg-gradient-to-t from-background via-background/80 to-transparent">
         <div className="max-w-sm mx-auto px-4">
           <Button
+            variant="primary"
             onClick={() => setIsDialogOpen(true)}
-            size="lg"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200"
+            className="w-full"
           >
             <Plus className="mr-2 h-4 w-4" />
             Create Canvas

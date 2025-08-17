@@ -15,6 +15,8 @@ import { AppRouter } from "@/server/trpc/routers/_app";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { GlobalModals } from "@/components/modals";
 
 let browserQueryClient: QueryClient | undefined = undefined;
 
@@ -56,17 +58,20 @@ export function CoreProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <ConvexClientProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-            <Toaster />
-          </ThemeProvider>
-        </ConvexClientProvider>
+        <NuqsAdapter>
+          <ConvexClientProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster />
+              <GlobalModals />
+            </ThemeProvider>
+          </ConvexClientProvider>
+        </NuqsAdapter>
       </TRPCProvider>
     </QueryClientProvider>
   );

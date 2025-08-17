@@ -5,10 +5,11 @@ import { SignOutButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Link } from "@/components/ui/link";
+import { useBuyCreditsModal } from "@/hooks/use-buy-credits-modal";
 
 export function Footer() {
   const searchParams = useSearchParams();
-
+  const { setOpen: setBuyCreditsModalOpen } = useBuyCreditsModal();
   const user = useQuery(api.users.getMyUser);
 
   return (
@@ -26,6 +27,10 @@ export function Footer() {
         {user != null ? (
           <>
             <div>{user.email}</div>
+            <div>/</div>
+            <button onClick={() => setBuyCreditsModalOpen(true)}>
+              credits
+            </button>
             <div>/</div>
             <SignOutButton>
               <button>signout</button>
