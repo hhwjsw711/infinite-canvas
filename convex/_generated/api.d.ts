@@ -13,6 +13,7 @@ import type * as clerk from "../clerk.js";
 import type * as credits from "../credits.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
+import type * as organizations from "../organizations.js";
 import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
 import type * as util from "../util.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   credits: typeof credits;
   files: typeof files;
   http: typeof http;
+  organizations: typeof organizations;
   stripe: typeof stripe;
   users: typeof users;
   util: typeof util;

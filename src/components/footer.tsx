@@ -6,10 +6,12 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Link } from "@/components/ui/link";
 import { useBuyCreditsModal } from "@/hooks/use-buy-credits-modal";
+import { useCreateStudioModal } from "@/hooks/use-create-studio-modal";
 
 export function Footer() {
   const searchParams = useSearchParams();
   const { setOpen: setBuyCreditsModalOpen } = useBuyCreditsModal();
+  const { setOpen: setCreateStudioModalOpen } = useCreateStudioModal();
   const user = useQuery(api.users.getMyUser);
 
   return (
@@ -26,6 +28,10 @@ export function Footer() {
         <div>/</div>
         {user != null ? (
           <>
+            <button onClick={() => setCreateStudioModalOpen(true)}>
+              studio
+            </button>
+            <div>/</div>
             <div>{user.email}</div>
             <div>/</div>
             <button onClick={() => setBuyCreditsModalOpen(true)}>

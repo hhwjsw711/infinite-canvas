@@ -38,6 +38,12 @@ export const pay = action({
         creditPacks: args.creditPacks,
       },
       mode: "payment",
+      payment_method_types: ["card", "wechat_pay", "alipay"],
+      payment_method_options: {
+        wechat_pay: {
+          client: "web",
+        },
+      },
       success_url: `${domain}`,
       cancel_url: `${domain}`,
     });

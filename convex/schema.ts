@@ -10,6 +10,16 @@ export default defineSchema({
     isAdmin: v.optional(v.boolean()),
     profileImage: v.optional(v.string()),
   }).index("by_userId", ["userId"]),
+  organizations: defineTable({
+    name: v.string(),
+    email: v.optional(v.string()),
+    logo: v.optional(v.string()),
+  }),
+  members: defineTable({
+    userId: v.id("users"),
+    organizationId: v.id("organizations"),
+    role: v.union(v.literal("owner"), v.literal("member")),
+  }).index("by_userId_OrganizationId", ["userId", "organizationId"]),
   canvases: defineTable({
     userId: v.id("users"),
     title: v.string(),
