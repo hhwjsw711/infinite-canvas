@@ -14,6 +14,7 @@ export default defineSchema({
     name: v.string(),
     email: v.optional(v.string()),
     logo: v.optional(v.string()),
+    plan: v.union(v.literal("free"), v.literal("pro")),
   }),
   members: defineTable({
     userId: v.id("users"),
