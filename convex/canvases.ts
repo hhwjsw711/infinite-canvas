@@ -133,10 +133,6 @@ export const updateCanvas = authMutation({
       throw new ConvexError("Canvas not found");
     }
 
-    if (canvas.userId !== ctx.user._id) {
-      throw new ConvexError("You are not authorized to update this canvas.");
-    }
-
     const { canvasId, state, ...rest } = args;
     const updates: Partial<Doc<"canvases">> = {
       ...rest,
@@ -161,10 +157,6 @@ export const createShareLink = authMutation({
     const canvas = await ctx.db.get(args.canvasId);
     if (!canvas) {
       throw new ConvexError("Canvas not found");
-    }
-
-    if (canvas.userId !== ctx.user._id) {
-      throw new ConvexError("You are not authorized to share this canvas");
     }
 
     const shareToken = crypto.randomUUID();
