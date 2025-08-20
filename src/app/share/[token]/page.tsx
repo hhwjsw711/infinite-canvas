@@ -4,19 +4,16 @@ import ShareCanvasClient from "./client";
 import { fetchQuery } from "convex/nextjs";
 import { api } from "../../../../convex/_generated/api";
 
-interface SharePageProps {
-  params: {
-    token: string;
-  };
-}
-
 // Generate metadata for social sharing
 export async function generateMetadata({
   params,
-}: SharePageProps): Promise<Metadata> {
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
   try {
+    const { token } = await params;
     const canvas = await fetchQuery(api.canvases.getByShareToken, {
-      shareToken: params.token,
+      shareToken: token,
     });
     return {
       title: `${canvas.title} - Infinite Kanvas`,
@@ -42,12 +39,17 @@ export async function generateMetadata({
   }
 }
 
-export default async function SharePage({ params }: SharePageProps) {
+export default async function SharePage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
   try {
+    const { token } = await params;
     const canvas = await fetchQuery(api.canvases.getByShareToken, {
-      shareToken: params.token,
+      shareToken: token,
     });
-    return <ShareCanvasClient roomId={canvas._id} />;
+    return <ShareCanvasClient roomId={String(canvas._id)} />;
   } catch {
     notFound();
   }
