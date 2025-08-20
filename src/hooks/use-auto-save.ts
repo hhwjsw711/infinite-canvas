@@ -160,6 +160,39 @@ export function useAutoSave({
     onSaveStart?.();
 
     try {
+      // Check if we're online
+      if (!navigator.onLine) {
+        // Save to cache for background sync
+        if ("serviceWorker" in navigator && "SyncManager" in window) {
+          const cache = await caches.open("canvas-sync");
+          const syncRequest = new Request(`/sync/${canvasId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              canvasId,
+              state,
+              timestamp: Date.now(),
+            }),
+          });
+
+          await cache.put(
+            syncRequest.url,
+            new Response(syncRequest.body, {
+              status: 200,
+              headers: syncRequest.headers,
+            }),
+          );
+
+          // Register background sync
+          const registration = await navigator.serviceWorker.ready;
+          await (registration as any).sync.register(`save-canvas-${canvasId}`);
+
+          setIsSaving(false);
+          onSaveComplete?.();
+          return;
+        }
+      }
+
       // Upload any pending images
       const cloudImages = await uploadPendingImages(state.images);
       const cloudVideos = await uploadPendingVideos(state.videos);

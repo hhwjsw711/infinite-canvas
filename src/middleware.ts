@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/trpc(.*)",
   "/api/fal(.*)",
+  "/offline", // PWA offline page
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
