@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/trpc(.*)",
   "/api/fal(.*)",
   "/offline", // PWA offline page
+  "/share/(.*)", // Public share links
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

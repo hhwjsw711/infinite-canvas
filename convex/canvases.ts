@@ -18,24 +18,21 @@ export const getCanvas = query({
 
 function attachUrlToCanvas(ctx: QueryCtx, canvas: Doc<"canvases">) {
   const r2PublicUrl = process.env.R2_PUBLIC_URL;
-  if (!r2PublicUrl) {
-    throw new ConvexError(
-      "R2_PUBLIC_URL environment variable is not set in Convex dashboard.",
-    );
-  }
 
   const imagesWithUrl = canvas.stateJson.images.map((image) => ({
     ...image,
-    url: image.cloudImageId
-      ? `${r2PublicUrl}/${image.cloudImageId}`
-      : image.src,
+    url:
+      r2PublicUrl && image.cloudImageId
+        ? `${r2PublicUrl}/${image.cloudImageId}`
+        : image.src,
   }));
 
   const videosWithUrl = canvas.stateJson.videos.map((video) => ({
     ...video,
-    url: video.cloudVideoId
-      ? `${r2PublicUrl}/${video.cloudVideoId}`
-      : video.src,
+    url:
+      r2PublicUrl && video.cloudVideoId
+        ? `${r2PublicUrl}/${video.cloudVideoId}`
+        : video.src,
   }));
 
   return {
@@ -151,5 +148,59 @@ export const updateCanvas = authMutation({
     }
 
     await ctx.db.patch(args.canvasId, updates);
+  },
+});
+
+export const createShareLink = authMutation({
+  args: {
+    canvasId: v.id("canvases"),
+    expiresIn: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    // Check canvas exists and ownership
+    const canvas = await ctx.db.get(args.canvasId);
+    if (!canvas) {
+      throw new ConvexError("Canvas not found");
+    }
+
+    if (canvas.userId !== ctx.user._id) {
+      throw new ConvexError("You are not authorized to share this canvas");
+    }
+
+    const shareToken = crypto.randomUUID();
+
+    const now = Date.now();
+    const expiresAt = args.expiresIn
+      ? now + args.expiresIn * 60 * 60 * 1000
+      : undefined;
+
+    await ctx.db.insert("sharedLinks", {
+      canvasId: args.canvasId,
+      shareToken,
+      expiresAt,
+    });
+
+    return { shareToken };
+  },
+});
+
+export const getByShareToken = query({
+  args: { shareToken: v.string() },
+  handler: async (ctx, args) => {
+    const shareLink = await ctx.db
+      .query("sharedLinks")
+      .withIndex("by_shareToken", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!shareLink) throw new ConvexError("Invalid share link");
+
+    if (shareLink.expiresAt && shareLink.expiresAt < Date.now()) {
+      throw new ConvexError("Share link has expired");
+    }
+
+    const canvas = await ctx.db.get(shareLink.canvasId);
+    if (!canvas) throw new ConvexError("Canvas not found");
+
+    return await attachUrlToCanvas(ctx, canvas);
   },
 });

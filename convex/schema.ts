@@ -81,6 +81,11 @@ export default defineSchema({
     updatedAt: v.number(),
     lastAccessedAt: v.number(),
   }).index("by_updatedAt", ["updatedAt"]),
+  sharedLinks: defineTable({
+    canvasId: v.id("canvases"),
+    shareToken: v.string(),
+    expiresAt: v.optional(v.number()),
+  }).index("by_shareToken", ["shareToken"]),
   files: defineTable({
     canvasId: v.string(),
     key: v.string(),

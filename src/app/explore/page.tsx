@@ -25,6 +25,7 @@ import {
   useConvexAuth,
 } from "convex/react";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
+import { IndexedDBMigration } from "@/components/migration/IndexedDBMigration";
 
 export default function HomePage() {
   const router = useRouter();
@@ -239,6 +240,13 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* Migration section */}
+      <div className="fixed bottom-20 left-0 right-0 z-20 py-4">
+        <div className="max-w-sm mx-auto px-4">
+          <IndexedDBMigration />
+        </div>
+      </div>
 
       {/* Fixed Create button at bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-20 py-4 bg-gradient-to-t from-background via-background/80 to-transparent">
