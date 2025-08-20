@@ -5,7 +5,7 @@ export default defineSchema({
   users: defineTable({
     userId: v.string(), // this the Clerk ID, stored in the subject JWT field
     email: v.string(),
-    credits: v.optional(v.number()),
+    credits: v.number(),
     name: v.optional(v.string()),
     isAdmin: v.optional(v.boolean()),
     profileImage: v.optional(v.string()),

@@ -1,6 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { authMutation, authQuery } from "./util";
+import { internal } from "./_generated/api";
+
+const FREE_CREDITS = 5;
 
 export const getUserById = internalQuery({
   args: { userId: v.string() },
@@ -38,19 +41,31 @@ export const createUser = internalMutation({
     profileImage: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.db
+    const existing = await ctx.db
       .query("users")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .first();
 
-    if (user) return;
+    if (existing) {
+      await ctx.runMutation(internal.organizations.createDefaultForUser, {
+        userId: existing._id,
+      });
+      return { id: existing._id };
+    }
 
-    await ctx.db.insert("users", {
+    const userId = await ctx.db.insert("users", {
       email: args.email,
-      userId: args.userId,
+      userId: args.userId, // Clerk ID
       profileImage: args.profileImage,
+      credits: FREE_CREDITS,
       name: args.name,
     });
+
+    await ctx.runMutation(internal.organizations.createDefaultForUser, {
+      userId,
+    });
+
+    return { id: userId };
   },
 });
 

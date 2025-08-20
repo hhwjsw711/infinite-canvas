@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation } from "./_generated/server";
+import { authQuery } from "./util";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 
@@ -19,8 +20,18 @@ export const addCredits = internalMutation({
     }
 
     await ctx.db.patch(user._id, {
-      credits: (user.credits ?? 0) + args.credits,
+      credits: user.credits + args.credits,
     });
+  },
+});
+
+export const getMyCredits = authQuery({
+  args: {},
+  handler: async (ctx, args): Promise<number | null> => {
+    if (!ctx.user) {
+      return null;
+    }
+    return ctx.user.credits ?? 0;
   },
 });
 
