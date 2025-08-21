@@ -16,7 +16,8 @@ const Canvas = dynamic(() => import("@/components/canvas"), {
 
 export default function RoomPage() {
   const params = useParams();
+  const organizationId = params.organizationId as string;
   const roomId = params.roomId as string;
 
-  return <Canvas roomId={roomId} />;
+  return <Canvas organizationId={organizationId} roomId={roomId} />;
 }

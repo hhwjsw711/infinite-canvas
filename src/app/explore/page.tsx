@@ -59,8 +59,8 @@ export default function HomePage() {
   const handleCreateCanvas = async () => {
     setIsCreating(true);
     try {
-      const canvasId = await createCanvas({
-        title: canvasName.trim() || "Untitled Canvas",
+      const result = await createCanvas({
+        title: canvasName.trim() || "Untitled",
         isPublic,
         state: {
           images: [],
@@ -72,7 +72,7 @@ export default function HomePage() {
 
       // Close dialog and navigate to new canvas
       setIsDialogOpen(false);
-      router.push(`/k/${canvasId}`);
+      router.push(`/${result.organizationId}/${result.canvasId}`);
     } finally {
       setIsCreating(false);
     }
@@ -165,7 +165,10 @@ export default function HomePage() {
                 <div className="mx-auto max-w-7xl">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
                     {canvases.map((canvas: Doc<"canvases">) => (
-                      <Link key={canvas._id} href={`/k/${canvas._id}`}>
+                      <Link
+                        key={canvas._id}
+                        href={`/${canvas.organizationId}/${canvas._id}`}
+                      >
                         <div className="group relative aspect-square flex flex-col rounded-xl border border-border hover:border-primary hover:bg-muted/30 transition-all duration-200 cursor-pointer overflow-hidden hover:shadow-lg">
                           {/* Delete button */}
                           {user?.isAdmin && (

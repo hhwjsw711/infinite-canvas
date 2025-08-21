@@ -30,6 +30,7 @@ import { Logo } from "@/components/icons";
 import type { ChatMessage } from "@/types/multiplayer";
 
 interface MultiplayerPanelProps {
+  organizationId: string;
   onToggleCursors?: (show: boolean) => void;
   isExpanded?: boolean;
   onExpandChange?: (expanded: boolean) => void;
@@ -39,6 +40,7 @@ interface MultiplayerPanelProps {
 }
 
 export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
+  organizationId,
   onToggleCursors,
   isExpanded: controlledExpanded,
   onExpandChange,
@@ -119,7 +121,7 @@ export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
   };
 
   const handleCopyLink = () => {
-    const link = `${window.location.origin}/k/${roomId}`;
+    const link = `${window.location.origin}/${organizationId}/${roomId}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);

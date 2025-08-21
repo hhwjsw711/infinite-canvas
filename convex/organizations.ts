@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { authMutation, authQuery } from "./util";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 export const createDefaultForUser = internalMutation({
   args: {
@@ -16,7 +17,32 @@ export const createDefaultForUser = internalMutation({
     if (membership) {
       const org = await ctx.db.get(membership.organizationId);
       if (org) {
-        return { id: org._id, name: org.name };
+        const existingCanvas = await ctx.db
+          .query("canvases")
+          .withIndex("by_organizationId", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .first();
+
+        if (!existingCanvas) {
+          const now = Date.now();
+          const canvasId = await ctx.db.insert("canvases", {
+            title: "Untitled",
+            organizationId: membership.organizationId,
+            stateJson: {
+              images: [],
+              videos: [],
+              viewport: { x: 0, y: 0, scale: 1 },
+              version: "1.0.0",
+            },
+            isPublic: false,
+            updatedAt: now,
+            lastAccessedAt: now,
+          });
+          return { id: org._id, name: org.name, canvasId };
+        }
+
+        return { id: org._id, name: org.name, canvasId: existingCanvas._id };
       }
     }
 
@@ -31,8 +57,23 @@ export const createDefaultForUser = internalMutation({
       role: "owner",
     });
 
+    const now = Date.now();
+    const canvasId = await ctx.db.insert("canvases", {
+      title: "Untitled",
+      organizationId: orgId,
+      stateJson: {
+        images: [],
+        videos: [],
+        viewport: { x: 0, y: 0, scale: 1 },
+        version: "1.0.0",
+      },
+      isPublic: false,
+      updatedAt: now,
+      lastAccessedAt: now,
+    });
+
     const org = await ctx.db.get(orgId);
-    return org ? { id: org._id, name: org.name } : null;
+    return org ? { id: org._id, name: org.name, canvasId } : null;
   },
 });
 
@@ -50,7 +91,22 @@ export const create = authMutation({
       role: "owner",
     });
 
-    return { id: orgId };
+    const now = Date.now();
+    const canvasId = await ctx.db.insert("canvases", {
+      title: "Untitled",
+      organizationId: orgId,
+      stateJson: {
+        images: [],
+        videos: [],
+        viewport: { x: 0, y: 0, scale: 1 },
+        version: "1.0.0",
+      },
+      isPublic: false,
+      updatedAt: now,
+      lastAccessedAt: now,
+    });
+
+    return { id: orgId, canvasId };
   },
 });
 
@@ -76,5 +132,17 @@ export const listMine = authQuery({
     );
 
     return rows.filter((r): r is NonNullable<typeof r> => r !== null);
+  },
+});
+
+export const getUserFirstOrganization = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const membership = await ctx.db
+      .query("members")
+      .withIndex("by_userId_OrganizationId", (q) => q.eq("userId", args.userId))
+      .first();
+
+    return membership;
   },
 });

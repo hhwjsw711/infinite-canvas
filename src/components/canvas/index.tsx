@@ -127,10 +127,14 @@ import { useAutoSave } from "@/hooks/use-auto-save";
 import { useFileUploader } from "@/hooks/useFileUploader";
 
 interface CanvasProps {
+  organizationId: string;
   roomId: string;
 }
 
-export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
+export default function OverlayPage({
+  organizationId,
+  roomId: propRoomId,
+}: CanvasProps) {
   const { theme, setTheme } = useTheme();
   const [images, setImages] = useState<PlacedImage[]>([]);
   const [videos, setVideos] = useState<PlacedVideo[]>([]);
@@ -3096,6 +3100,7 @@ export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
 
       {/* Multiplayer components - Always render since canvas is only used with roomId */}
       <MultiplayerPanel
+        organizationId={organizationId}
         onToggleCursors={setShowMultiplayerCursors}
         isExpanded={isMultiplayerPanelExpanded}
         onExpandChange={setIsMultiplayerPanelExpanded}

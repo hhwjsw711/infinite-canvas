@@ -22,7 +22,7 @@ export default defineSchema({
     role: v.union(v.literal("owner"), v.literal("member")),
   }).index("by_userId_OrganizationId", ["userId", "organizationId"]),
   canvases: defineTable({
-    userId: v.id("users"),
+    organizationId: v.id("organizations"),
     title: v.string(),
     stateJson: v.object({
       images: v.array(
@@ -80,7 +80,9 @@ export default defineSchema({
     isPublic: v.boolean(),
     updatedAt: v.number(),
     lastAccessedAt: v.number(),
-  }).index("by_updatedAt", ["updatedAt"]),
+  })
+    .index("by_updatedAt", ["updatedAt"])
+    .index("by_organizationId", ["organizationId"]),
   sharedLinks: defineTable({
     canvasId: v.id("canvases"),
     shareToken: v.string(),

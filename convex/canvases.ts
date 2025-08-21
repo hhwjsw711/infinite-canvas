@@ -68,20 +68,20 @@ export const createCanvas = internalMutation({
     title: v.string(),
     state: v.any(),
     isPublic: v.boolean(),
-    userId: v.id("users"),
+    organizationId: v.id("organizations"),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
+    const organization = await ctx.db.get(args.organizationId);
 
-    if (!user) {
-      throw new ConvexError("User not found");
+    if (!organization) {
+      throw new ConvexError("Organization not found");
     }
 
     const now = Date.now();
 
     const id = await ctx.db.insert("canvases", {
       title: args.title,
-      userId: user._id,
+      organizationId: args.organizationId,
       stateJson: args.state,
       isPublic: args.isPublic,
       updatedAt: now,
@@ -97,19 +97,43 @@ export const createCanvasAction = authAction({
     title: v.optional(v.string()),
     state: v.any(),
     isPublic: v.optional(v.boolean()),
+    organizationId: v.optional(v.id("organizations")),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    canvasId: Id<"canvases">;
+    organizationId: Id<"organizations">;
+  }> => {
+    let organizationId = args.organizationId;
+
+    if (!organizationId) {
+      const membership = await ctx.runQuery(
+        internal.organizations.getUserFirstOrganization,
+        {
+          userId: ctx.user._id,
+        },
+      );
+
+      if (!membership) {
+        throw new ConvexError("User has no organization");
+      }
+
+      organizationId = membership.organizationId;
+    }
+
     const canvasId: Id<"canvases"> = await ctx.runMutation(
       internal.canvases.createCanvas,
       {
-        title: args.title ?? "Untitled Canvas",
+        title: args.title ?? "Untitled",
         state: args.state,
         isPublic: args.isPublic ?? false,
-        userId: ctx.user._id,
+        organizationId,
       },
     );
 
-    return canvasId;
+    return { canvasId, organizationId };
   },
 });
 
