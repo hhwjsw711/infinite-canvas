@@ -46,7 +46,7 @@ const serwist = new Serwist({
     },
     // Cache canvas pages
     {
-      matcher: /^\/k\/[^/]+$/,
+      matcher: /^\/[^/]+\/[^/]+$/,
       handler: new NetworkFirst({
         cacheName: "canvas-pages",
         plugins: [

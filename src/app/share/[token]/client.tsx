@@ -14,12 +14,16 @@ const Canvas = dynamic(() => import("@/components/canvas"), {
 
 interface ShareCanvasClientProps {
   roomId: string;
+  organizationId: string;
 }
 
-export default function ShareCanvasClient({ roomId }: ShareCanvasClientProps) {
+export default function ShareCanvasClient({
+  roomId,
+  organizationId,
+}: ShareCanvasClientProps) {
   return (
     <div className="h-screen w-screen">
-      <Canvas roomId={roomId} />
+      <Canvas organizationId={organizationId} roomId={roomId} />
     </div>
   );
 }
