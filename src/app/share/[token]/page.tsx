@@ -8,10 +8,10 @@ import { api } from "../../../../convex/_generated/api";
 export async function generateMetadata({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   try {
-    const { token } = params;
+    const { token } = await params;
     const canvas = await fetchQuery(api.canvases.getByShareToken, {
       shareToken: token,
     });
@@ -42,10 +42,10 @@ export async function generateMetadata({
 export default async function SharePage({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }) {
   try {
-    const { token } = params;
+    const { token } = await params;
     const canvas = await fetchQuery(api.canvases.getByShareToken, {
       shareToken: token,
     });
