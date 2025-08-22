@@ -4136,7 +4136,7 @@ export default function OverlayPage({
 
           {/* <PoweredByFalBadge /> */}
           {/* <GithubBadge /> */}
-          {/* <Footer /> */}
+          <Footer />
 
           {/* Dimension display for selected images */}
           <DimensionDisplay

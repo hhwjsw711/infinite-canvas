@@ -15,32 +15,38 @@ import {
   FormLabel,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useCreateStudioModal } from "@/hooks/use-create-studio-modal";
+import { Switch } from "@/components/ui/switch";
+import { useCreateCanvasModal } from "@/hooks/use-create-canvas-modal";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { SubmitButton } from "../submit-button";
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { Building2 } from "lucide-react";
+import { FileImage } from "lucide-react";
+import { Id } from "../../../convex/_generated/dataModel";
 
 const formSchema = z.object({
-  name: z.string().min(1, "Studio name is required"),
+  title: z.string().min(1, "Canvas name is required"),
+  isPublic: z.boolean().default(false),
 });
 
-export function CreateStudioModal() {
-  const { open, setOpen } = useCreateStudioModal();
+export function CreateCanvasModal() {
+  const { open, setOpen } = useCreateCanvasModal();
+  const params = useParams();
+  const organizationId = params.organizationId as string;
   const router = useRouter();
   const [error, setError] = useState<string>("");
 
-  const createOrganization = useMutation(api.organizations.create);
+  const createCanvas = useAction(api.canvases.createCanvasAction);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
+      title: "",
+      isPublic: false,
     },
   });
 
@@ -52,17 +58,32 @@ export function CreateStudioModal() {
   }, [open]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!organizationId) {
+      setError("Organization not found");
+      return;
+    }
+
     setError("");
 
     try {
-      const org = await createOrganization({ name: values.name.trim() });
+      const result = await createCanvas({
+        title: values.title.trim(),
+        isPublic: values.isPublic,
+        organizationId: organizationId as Id<"organizations">,
+        state: {
+          images: [],
+          videos: [],
+          viewport: { x: 0, y: 0, scale: 1 },
+          version: "1.0.0",
+        },
+      });
 
-      if (org?.id && org?.canvasId) {
+      if (result?.canvasId && result?.organizationId) {
         // Success: use SPA routing with fallback
         form.reset();
         setOpen(false);
 
-        const newPath = `/${org.id}/${org.canvasId}`;
+        const newPath = `/${result.organizationId}/${result.canvasId}`;
         router.push(newPath);
 
         // Fallback for edge cases
@@ -72,10 +93,10 @@ export function CreateStudioModal() {
           }
         }, 100);
       } else {
-        setError("Failed to create studio. Please try again.");
+        setError("Failed to create canvas. Please try again.");
       }
     } catch (error) {
-      setError("Failed to create studio. Please try again.");
+      setError("Failed to create canvas. Please try again.");
     }
   }
 
@@ -91,14 +112,13 @@ export function CreateStudioModal() {
       >
         <DialogHeader className="border-b px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-xl bg-blue-500/15 text-blue-600">
-              <Building2 className="size-4" />
+            <div className="grid size-9 place-items-center rounded-xl bg-green-500/15 text-green-600">
+              <FileImage className="size-4" />
             </div>
             <div>
-              <DialogTitle className="text-lg">Create Studio</DialogTitle>
+              <DialogTitle className="text-lg">Create Canvas</DialogTitle>
               <p className="text-xs text-muted-foreground">
-                Create a workspace to organize your canvases and collaborate
-                with others
+                Create a new canvas to start creating and collaborating
               </p>
             </div>
           </div>
@@ -109,16 +129,39 @@ export function CreateStudioModal() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
-                name="name"
+                name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Studio Name</FormLabel>
+                    <FormLabel>Canvas Name</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="e.g. My Creative Studio"
+                        placeholder="e.g. My Creative Canvas"
                         {...field}
                         className="rounded-xl"
                         autoFocus
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isPublic"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">
+                        Make canvas public
+                      </FormLabel>
+                      <div className="text-[0.8rem] text-muted-foreground">
+                        Public canvases can be discovered by others
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
                       />
                     </FormControl>
                   </FormItem>
@@ -148,7 +191,7 @@ export function CreateStudioModal() {
                   className="rounded-xl"
                   variant="primary"
                 >
-                  Create studio
+                  Create canvas
                 </SubmitButton>
               </div>
             </form>

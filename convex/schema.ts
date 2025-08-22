@@ -82,7 +82,8 @@ export default defineSchema({
     lastAccessedAt: v.number(),
   })
     .index("by_updatedAt", ["updatedAt"])
-    .index("by_organizationId", ["organizationId"]),
+    .index("by_organizationId", ["organizationId"])
+    .index("by_isPublic", ["isPublic"]),
   sharedLinks: defineTable({
     canvasId: v.id("canvases"),
     shareToken: v.string(),

@@ -1,82 +1,29 @@
 "use client";
 
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/icons";
-import { Clock, Plus, Trash2, Globe, Lock } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Clock, Trash2, Globe, Lock } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { api } from "../../../convex/_generated/api";
-import {
-  useAction,
-  useMutation,
-  usePaginatedQuery,
-  useQuery,
-  useConvexAuth,
-} from "convex/react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Doc, Id } from "../../../convex/_generated/dataModel";
 import { IndexedDBMigration } from "@/components/migration/IndexedDBMigration";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HomePage() {
-  const router = useRouter();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [canvasName, setCanvasName] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-
-  const {
-    results: canvases,
-    status,
-    loadMore,
-    isLoading,
-  } = usePaginatedQuery(
-    api.canvases.getRecentCanvases,
-    {},
-    { initialNumItems: 12 },
-  );
-
+  // Get all public canvases
+  const publicCanvasesResult = useQuery(api.canvases.getPublicCanvases, {
+    paginationOpts: { numItems: 12, cursor: null },
+  });
+  const canvases = publicCanvasesResult?.page || [];
   const { isAuthenticated } = useConvexAuth();
-
   const user = useQuery(
     api.users.getMyUser,
     !isAuthenticated ? "skip" : undefined,
   );
-
-  const createCanvas = useAction(api.canvases.createCanvasAction);
   const deleteCanvas = useMutation(api.canvases.deleteCanvas);
-
-  const handleCreateCanvas = async () => {
-    setIsCreating(true);
-    try {
-      const result = await createCanvas({
-        title: canvasName.trim() || "Untitled",
-        isPublic,
-        state: {
-          images: [],
-          videos: [],
-          viewport: { x: 0, y: 0, scale: 1 },
-          version: "1.0.0",
-        },
-      });
-
-      // Close dialog and navigate to new canvas
-      setIsDialogOpen(false);
-      router.push(`/${result.organizationId}/${result.canvasId}`);
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   const handleDelete = async (
     e: React.MouseEvent,
@@ -104,10 +51,12 @@ export default function HomePage() {
       {/* Fixed background */}
       <div className="fixed inset-0 bg-background" />
 
-      {/* Fixed Header with Logo and Search */}
+      {/* Fixed Header with Logo and Title */}
       <header className="fixed top-0 left-0 right-0 z-20 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="h-16 flex items-center justify-center">
-          <Logo className="h-7 w-auto" />
+          <div className="flex items-center gap-3">
+            <Logo className="h-7 w-auto" />
+          </div>
         </div>
       </header>
 
@@ -145,19 +94,49 @@ export default function HomePage() {
               }}
             />
 
-            {isLoading ? (
-              <div className="h-full flex items-center justify-center relative z-10">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            {publicCanvasesResult === undefined ? (
+              // Skeleton loading state
+              <div className="w-full px-4 sm:px-6 lg:px-8 pt-8 pb-4 relative z-10">
+                <div className="mx-auto max-w-7xl">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+                    {[...Array(12)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-square flex flex-col rounded-xl border border-border overflow-hidden"
+                      >
+                        {/* Skeleton indicators */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <Skeleton className="w-6 h-6 rounded-lg" />
+                        </div>
+
+                        {/* Main content skeleton */}
+                        <div className="flex-1 flex flex-col items-center justify-center p-4 space-y-3">
+                          <Skeleton className="h-4 w-3/4" />
+                          <div className="flex items-center gap-1">
+                            <Skeleton className="w-3 h-3 rounded-full" />
+                            <Skeleton className="h-3 w-16" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ) : !canvases || canvases.length === 0 ? (
+            ) : canvases.length === 0 ? (
               <div className="h-full flex items-center justify-center relative z-10">
-                <div className="text-center space-y-3">
-                  <p className="text-muted-foreground text-lg">
-                    No canvases yet
-                  </p>
-                  <p className="text-muted-foreground text-sm">
-                    Create your first canvas to get started
-                  </p>
+                <div className="text-center space-y-4 max-w-md mx-auto px-4">
+                  <div className="size-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center">
+                    <Globe className="size-8 text-muted-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-lg font-medium">
+                      No public canvases yet
+                    </p>
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                      No canvases have been made public yet. Be the first to
+                      share your creative work!
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -224,19 +203,6 @@ export default function HomePage() {
                       </Link>
                     ))}
                   </div>
-
-                  {/* Load More button */}
-                  {status === "CanLoadMore" && (
-                    <div className="flex justify-center mt-8 pb-4">
-                      <Button
-                        onClick={() => loadMore(12)}
-                        variant="ghost"
-                        className="px-8 py-2 bg-background/50 backdrop-blur-sm hover:bg-muted/50"
-                      >
-                        Load More
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -251,20 +217,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Fixed Create button at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 py-4 bg-gradient-to-t from-background via-background/80 to-transparent">
-        <div className="max-w-sm mx-auto px-4">
-          <Button
-            variant="primary"
-            onClick={() => setIsDialogOpen(true)}
-            className="w-full"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Canvas
-          </Button>
-        </div>
-      </div>
-
       {/* Hide scrollbar and fade-in animation */}
       <style jsx global>{`
         .scrollbar-hide {
@@ -274,7 +226,6 @@ export default function HomePage() {
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
         }
-
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;
@@ -282,76 +233,6 @@ export default function HomePage() {
           overflow: hidden;
         }
       `}</style>
-
-      {/* Create Canvas Dialog */}
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            setCanvasName("");
-            setIsPublic(false);
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>New Canvas</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            {/* Canvas name input */}
-            <div className="space-y-2">
-              <Label htmlFor="canvasname">Canvas name</Label>
-              <Input
-                id="canvasname"
-                value={canvasName}
-                onChange={(e) => setCanvasName(e.target.value)}
-                placeholder="Enter canvas name"
-                className="w-full"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !isCreating) {
-                    handleCreateCanvas();
-                  }
-                }}
-                autoFocus
-                maxLength={100}
-              />
-            </div>
-
-            {/* Public/Private toggle */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label htmlFor="public">Make canvas public</Label>
-                <p className="text-xs text-muted-foreground">
-                  Public canvases can be discovered by others
-                </p>
-              </div>
-              <Switch
-                id="public"
-                checked={isPublic}
-                onCheckedChange={setIsPublic}
-              />
-            </div>
-
-            {/* Create button */}
-            <Button
-              variant="primary"
-              className="w-full"
-              onClick={handleCreateCanvas}
-              disabled={isCreating}
-            >
-              {isCreating ? (
-                <span className="inline-flex items-center gap-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Creating...
-                </span>
-              ) : (
-                "Create"
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

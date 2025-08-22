@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { authMutation, authQuery } from "./util";
 import { internalMutation, internalQuery } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
 
 export const createDefaultForUser = internalMutation({
   args: {
@@ -131,7 +130,10 @@ export const listMine = authQuery({
       }),
     );
 
-    return rows.filter((r): r is NonNullable<typeof r> => r !== null);
+    const filteredRows = rows.filter(
+      (r): r is NonNullable<typeof r> => r !== null,
+    );
+    return filteredRows;
   },
 });
 

@@ -63,6 +63,64 @@ export const getRecentCanvases = query({
   },
 });
 
+export const getPublicCanvases = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const canvases = await ctx.db
+      .query("canvases")
+      .withIndex("by_isPublic")
+      .filter((q) => q.eq(q.field("isPublic"), true))
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    return {
+      ...canvases,
+      page: await Promise.all(
+        canvases.page.map((canvas) => attachUrlToCanvas(ctx, canvas)),
+      ),
+    };
+  },
+});
+
+export const getCanvasesByOrganization = query({
+  args: {
+    organizationId: v.id("organizations"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const canvasesQuery = ctx.db
+      .query("canvases")
+      .withIndex("by_organizationId", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .take(args.limit ?? 10);
+
+    const canvasesArray = await canvasesQuery;
+
+    return await Promise.all(
+      canvasesArray.map((canvas) => attachUrlToCanvas(ctx, canvas)),
+    );
+  },
+});
+
+export const getFirstCanvasByOrganization = query({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    const firstCanvas = await ctx.db
+      .query("canvases")
+      .withIndex("by_organizationId", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("asc")
+      .first();
+
+    return firstCanvas ? await attachUrlToCanvas(ctx, firstCanvas) : null;
+  },
+});
+
 export const createCanvas = internalMutation({
   args: {
     title: v.string(),

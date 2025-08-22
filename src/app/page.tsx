@@ -118,8 +118,13 @@ import { Switch } from "@/components/ui/switch";
 import { GithubBadge } from "@/components/canvas/GithubBadge";
 import { GenerationsIndicator } from "@/components/generations-indicator";
 import { Footer } from "@/components/footer";
+import { useQuery, useConvex } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useRouter } from "next/navigation";
 
 export default function OverlayPage() {
+  const router = useRouter();
+  const convex = useConvex();
   const { theme, setTheme } = useTheme();
   const [images, setImages] = useState<PlacedImage[]>([]);
   const [videos, setVideos] = useState<PlacedVideo[]>([]);
@@ -130,7 +135,7 @@ export default function OverlayPage() {
   );
   const simpsonsStyle = styleModels.find((m) => m.id === "simpsons");
   const { toast } = useToast();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const [generationSettings, setGenerationSettings] =
     useState<GenerationSettings>({
       prompt: simpsonsStyle?.prompt || "",
@@ -231,6 +236,28 @@ export default function OverlayPage() {
 
   // Track when generation completes
   const [previousGenerationCount, setPreviousGenerationCount] = useState(0);
+
+  const organizations = useQuery(
+    api.organizations.listMine,
+    isSignedIn ? {} : "skip",
+  );
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn && organizations?.length) {
+      const firstOrg = organizations[0];
+
+      convex
+        .query(api.canvases.getFirstCanvasByOrganization, {
+          organizationId: firstOrg._id,
+        })
+        .then((firstCanvas) => {
+          if (firstCanvas) {
+            router.replace(`/${firstOrg._id}/${firstCanvas._id}`);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [isLoaded, isSignedIn, organizations, router, convex]);
 
   useEffect(() => {
     const currentCount =
@@ -2535,6 +2562,19 @@ export default function OverlayPage() {
     bringForward,
     sendBackward,
   ]);
+
+  if (isLoaded && isSignedIn) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border border-primary border-t-transparent" />
+          <p className="text-muted-foreground">
+            Redirecting to your workspace...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
