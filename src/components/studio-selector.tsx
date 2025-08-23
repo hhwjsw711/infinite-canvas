@@ -182,7 +182,14 @@ export function StudioSelector() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpen(false);
-                          router.push(`/${String(org._id)}/settings?tab=team`);
+                          const targetRoomId =
+                            roomId ||
+                            (canvases && canvases[0]
+                              ? String(canvases[0]._id)
+                              : String(org._id));
+                          router.push(
+                            `/${String(org._id)}/${targetRoomId}/settings?tab=studio`,
+                          );
                         }}
                       />
                       {isCurrentOrg && (
@@ -273,7 +280,14 @@ export function StudioSelector() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpen(false);
-                            // TODO: Add canvas settings route when implemented
+                            const currentOrgId =
+                              organizationId ||
+                              (currentStudio
+                                ? String(currentStudio._id)
+                                : String(organizations[0]._id));
+                            router.push(
+                              `/${currentOrgId}/${String(canvas._id)}/settings`,
+                            );
                           }}
                         />
                         {isCurrentCanvas && (

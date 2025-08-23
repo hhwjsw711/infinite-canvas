@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,6 +31,12 @@ export function IndexedDBMigration() {
   const { userId } = useAuth();
 
   const checkForLegacyData = async () => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      setHasLegacyData(false);
+      setMigrationState("idle");
+      return;
+    }
+
     setMigrationState("checking");
     try {
       const dbExists = await indexedDB
@@ -106,9 +112,11 @@ export function IndexedDBMigration() {
   };
 
   // Check for legacy data on mount
-  if (hasLegacyData === null && migrationState === "idle") {
-    checkForLegacyData();
-  }
+  useEffect(() => {
+    if (hasLegacyData === null && migrationState === "idle") {
+      checkForLegacyData();
+    }
+  }, [hasLegacyData, migrationState]);
 
   if (hasLegacyData === false && migrationState === "idle") {
     return (

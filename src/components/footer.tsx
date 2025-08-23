@@ -30,13 +30,11 @@ export function Footer() {
           <>
             <StudioSelector />
             <div>/</div>
-            <div>{user.email}</div>
-            <div>/</div>
             <button
               onClick={() => setBuyCreditsModalOpen(true)}
               className="hover:underline"
             >
-              credits
+              {user.email}
             </button>
             <div>/</div>
             <SignOutButton>

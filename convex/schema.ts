@@ -20,7 +20,24 @@ export default defineSchema({
     userId: v.id("users"),
     organizationId: v.id("organizations"),
     role: v.union(v.literal("owner"), v.literal("member")),
-  }).index("by_userId_OrganizationId", ["userId", "organizationId"]),
+  })
+    .index("by_userId_OrganizationId", ["userId", "organizationId"])
+    .index("by_organizationId", ["organizationId"]),
+  invitations: defineTable({
+    organizationId: v.id("organizations"),
+    email: v.string(),
+    role: v.union(v.literal("owner"), v.literal("member")),
+    inviterUserId: v.id("users"),
+    token: v.string(),
+    expiresAt: v.number(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("rejected"),
+    ),
+  })
+    .index("by_token", ["token"])
+    .index("by_organizationId", ["organizationId"]),
   canvases: defineTable({
     organizationId: v.id("organizations"),
     title: v.string(),

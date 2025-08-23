@@ -23,8 +23,13 @@ import {
   EyeOff,
   MessageCircle,
   Edit2,
+  Share2,
 } from "lucide-react";
 import { useMultiplayer } from "@/hooks/use-multiplayer";
+import { useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/icons";
 import type { ChatMessage } from "@/types/multiplayer";
@@ -58,6 +63,8 @@ export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
   const [chatInput, setChatInput] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
   const [selectedColor, setSelectedColor] = useState("");
+  const [isCreatingShare, setIsCreatingShare] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -68,6 +75,9 @@ export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
     chatMessages: hookChatMessages,
     sendChatMessage,
   } = useMultiplayer();
+
+  const { toast } = useToast();
+  const createShareLink = useMutation(api.canvases.createShareLink);
 
   const usersList = Array.from(presenceMap.values());
   const userCount = usersList.length;
@@ -125,6 +135,45 @@ export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleCreateShareLink = async () => {
+    if (!roomId) {
+      toast({
+        title: "Error",
+        description: "Canvas not found. Please refresh and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingShare(true);
+    try {
+      const result = await createShareLink({
+        canvasId: roomId as Id<"canvases">,
+        expiresIn: 24, // 24 hours
+      });
+
+      const publicLink = `${window.location.origin}/share/${result.shareToken}`;
+      await navigator.clipboard.writeText(publicLink);
+
+      setCopiedShareLink(true);
+      setTimeout(() => setCopiedShareLink(false), 2000);
+
+      toast({
+        title: "Public share link created!",
+        description:
+          "Link copied to clipboard. Anyone can view this canvas without signing in.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create share link. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingShare(false);
+    }
   };
 
   const formatTime = (timestamp: number) => {
@@ -512,6 +561,25 @@ export const MultiplayerPanel: React.FC<MultiplayerPanelProps> = ({
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="text-xs">
                     {copiedLink ? "Copied!" : "Copy room link"}
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleCreateShareLink}
+                      disabled={isCreatingShare}
+                      className="h-8 w-8 p-0 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                    >
+                      {copiedShareLink ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Share2 className="h-4 w-4" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">
+                    {copiedShareLink ? "Copied!" : "Create public share link"}
                   </TooltipContent>
                 </Tooltip>
               </div>

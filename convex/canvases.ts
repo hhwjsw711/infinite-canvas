@@ -195,9 +195,28 @@ export const createCanvasAction = authAction({
   },
 });
 
-export const deleteCanvas = adminAuthMutation({
+export const deleteCanvas = authMutation({
   args: { canvasId: v.id("canvases") },
-  async handler(ctx, args) {
+  handler: async (ctx, args) => {
+    const canvas = await ctx.db.get(args.canvasId);
+    if (!canvas) {
+      throw new ConvexError("Canvas not found");
+    }
+
+    // Verify user has access to this organization
+    const membership = await ctx.db
+      .query("members")
+      .withIndex("by_userId_OrganizationId", (q) =>
+        q
+          .eq("userId", ctx.user._id)
+          .eq("organizationId", canvas.organizationId),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new ConvexError("You don't have permission to delete this canvas");
+    }
+
     await ctx.db.delete(args.canvasId);
   },
 });
