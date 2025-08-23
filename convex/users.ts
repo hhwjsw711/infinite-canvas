@@ -96,10 +96,89 @@ export const getMyUser = authQuery({
 });
 
 export const updateMyUser = authMutation({
-  args: { name: v.string() },
+  args: {
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+  },
   async handler(ctx, args) {
-    await ctx.db.patch(ctx.user._id, {
-      name: args.name,
-    });
+    // Build update object based on provided fields
+    const updates: { name?: string; email?: string } = {};
+
+    if (args.name !== undefined) {
+      updates.name = args.name;
+    }
+
+    if (args.email !== undefined) {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(args.email)) {
+        throw new ConvexError("Invalid email format");
+      }
+      updates.email = args.email;
+    }
+
+    // Only patch if there are actual updates
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(ctx.user._id, updates);
+    }
+
+    return null;
+  },
+});
+
+export const deleteMyUser = authMutation({
+  args: {},
+  async handler(ctx, args) {
+    const userId = ctx.user._id;
+
+    // Get user's organization memberships
+    const memberships = await ctx.db
+      .query("members")
+      .withIndex("by_userId_OrganizationId", (q) => q.eq("userId", userId))
+      .collect();
+
+    // Check if user is the only owner of any organization
+    for (const membership of memberships) {
+      if (membership.role === "owner") {
+        const ownerCount = await ctx.db
+          .query("members")
+          .withIndex("by_organizationId", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .filter((q) => q.eq(q.field("role"), "owner"))
+          .collect()
+          .then((owners) => owners.length);
+
+        if (ownerCount === 1) {
+          throw new ConvexError(
+            "Cannot delete account: You are the only owner of an organization. Transfer ownership first.",
+          );
+        }
+      }
+    }
+
+    // Step 1: Delete memberships
+    for (const membership of memberships) {
+      await ctx.db.delete(membership._id);
+    }
+
+    // Step 2: Delete invitations (both sent and received)
+    const invitations = await ctx.db
+      .query("invitations")
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("inviterUserId"), userId),
+          q.eq(q.field("email"), ctx.user.email),
+        ),
+      )
+      .collect();
+
+    for (const invitation of invitations) {
+      await ctx.db.delete(invitation._id);
+    }
+
+    // Step 3: Finally delete the user
+    await ctx.db.delete(userId);
+    return null;
   },
 });
