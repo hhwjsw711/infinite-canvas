@@ -22,7 +22,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { SubmitButton } from "../submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { FileImage } from "lucide-react";

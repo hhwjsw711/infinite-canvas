@@ -1,7 +1,18 @@
 import { v } from "convex/values";
 import { authMutation, authQuery } from "./util";
 import { internalMutation, internalQuery } from "./_generated/server";
-import { ConvexError } from "convex/values";
+
+// Plan limits constants
+const PLAN_LIMITS = {
+  free: {
+    credits: 100,
+    storage: 1024, // 1GB in MB
+  },
+  pro: {
+    credits: 10000, // High limit for PRO users
+    storage: 10240, // 10GB in MB
+  },
+};
 
 export const createDefaultForUser = internalMutation({
   args: {
@@ -153,17 +164,6 @@ export const getUserFirstOrganization = internalQuery({
 // Get organization by ID
 export const getById = authQuery({
   args: { organizationId: v.id("organizations") },
-  returns: v.union(
-    v.object({
-      _id: v.id("organizations"),
-      name: v.string(),
-      email: v.optional(v.string()),
-      logo: v.optional(v.string()),
-      plan: v.union(v.literal("free"), v.literal("pro")),
-      _creationTime: v.number(),
-    }),
-    v.null(),
-  ),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       return null;
@@ -193,7 +193,6 @@ export const update = authMutation({
     email: v.optional(v.string()),
     logo: v.optional(v.string()),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -226,19 +225,6 @@ export const update = authMutation({
 // Get organization members
 export const getMembers = authQuery({
   args: { organizationId: v.id("organizations") },
-  returns: v.array(
-    v.object({
-      _id: v.id("members"),
-      role: v.union(v.literal("owner"), v.literal("member")),
-      user: v.object({
-        _id: v.id("users"),
-        name: v.optional(v.string()),
-        email: v.string(),
-        profileImage: v.optional(v.string()),
-      }),
-      _creationTime: v.number(),
-    }),
-  ),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -290,7 +276,6 @@ export const getMembers = authQuery({
 // Delete organization (only if user has multiple organizations)
 export const deleteOrganization = authMutation({
   args: { organizationId: v.id("organizations") },
-  returns: v.null(),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -356,7 +341,6 @@ export const removeMember = authMutation({
     organizationId: v.id("organizations"),
     memberId: v.id("members"),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -400,7 +384,6 @@ export const createInvitation = authMutation({
     email: v.string(),
     role: v.union(v.literal("owner"), v.literal("member")),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -478,25 +461,6 @@ export const createInvitation = authMutation({
 // Get invitations for organization
 export const getInvitations = authQuery({
   args: { organizationId: v.id("organizations") },
-  returns: v.array(
-    v.object({
-      _id: v.id("invitations"),
-      email: v.string(),
-      role: v.union(v.literal("owner"), v.literal("member")),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("accepted"),
-        v.literal("rejected"),
-      ),
-      inviter: v.object({
-        _id: v.id("users"),
-        name: v.optional(v.string()),
-        email: v.string(),
-      }),
-      _creationTime: v.number(),
-      expiresAt: v.number(),
-    }),
-  ),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -553,7 +517,6 @@ export const cancelInvitation = authMutation({
     organizationId: v.id("organizations"),
     invitationId: v.id("invitations"),
   },
-  returns: v.null(),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -585,10 +548,6 @@ export const cancelInvitation = authMutation({
 // Accept invitation (public endpoint for accepting via email link)
 export const acceptInvitation = authMutation({
   args: { token: v.string() },
-  returns: v.object({
-    organizationId: v.id("organizations"),
-    organizationName: v.string(),
-  }),
   handler: async (ctx, args) => {
     if (!ctx.user) {
       throw new Error("User not authenticated");
@@ -650,6 +609,145 @@ export const acceptInvitation = authMutation({
     return {
       organizationId: invitation.organizationId,
       organizationName: organization.name,
+    };
+  },
+});
+
+export const updateSubscription = internalMutation({
+  args: {
+    subscriptionId: v.string(),
+    organizationId: v.id("organizations"),
+    canceledAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const organization = await ctx.db.get(args.organizationId);
+
+    if (!organization) {
+      throw new Error("no organization found with that organization id");
+    }
+
+    await ctx.db.patch(organization._id, {
+      subscriptionId: args.subscriptionId,
+      canceledAt: args.canceledAt,
+      plan: "pro",
+    });
+  },
+});
+
+export const updateSubscriptionBySubId = internalMutation({
+  args: { subscriptionId: v.string(), canceledAt: v.number() },
+  handler: async (ctx, args) => {
+    const organization = await ctx.db
+      .query("organizations")
+      .withIndex("by_subscriptionId", (q) =>
+        q.eq("subscriptionId", args.subscriptionId),
+      )
+      .first();
+
+    if (!organization) {
+      throw new Error("no organization found with that subscription id");
+    }
+
+    await ctx.db.patch(organization._id, {
+      canceledAt: args.canceledAt,
+    });
+  },
+});
+
+// Get plan limits for an organization
+export const getPlanLimits = authQuery({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const organization = await ctx.db.get(args.organizationId);
+
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
+    const limits = PLAN_LIMITS[organization.plan];
+
+    return {
+      plan: organization.plan,
+      creditsLimit: limits.credits,
+      storageLimit: limits.storage,
+      creditsUsed: organization.creditsUsed || 0,
+      storageUsed: organization.storageUsed || 0,
+    };
+  },
+});
+
+// Get subscription status for an organization
+export const getSubscriptionStatus = authQuery({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const organization = await ctx.db.get(args.organizationId);
+
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
+    return {
+      plan: organization.plan,
+      subscriptionId: organization.subscriptionId,
+      isActive: organization.plan === "pro",
+      isCanceled: !!organization.canceledAt,
+      canceledAt: organization.canceledAt,
+    };
+  },
+});
+
+// Update usage for an organization
+export const updateUsage = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    creditsToAdd: v.optional(v.number()),
+    storageToAdd: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const organization = await ctx.db.get(args.organizationId);
+
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
+    const currentCreditsUsed = organization.creditsUsed || 0;
+    const currentStorageUsed = organization.storageUsed || 0;
+
+    const updates: { creditsUsed?: number; storageUsed?: number } = {};
+
+    if (args.creditsToAdd !== undefined) {
+      updates.creditsUsed = Math.max(0, currentCreditsUsed + args.creditsToAdd);
+    }
+
+    if (args.storageToAdd !== undefined) {
+      updates.storageUsed = Math.max(0, currentStorageUsed + args.storageToAdd);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(organization._id, updates);
+    }
+  },
+});
+
+// Check if organization has exceeded limits
+export const checkLimits = authQuery({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const organization = await ctx.db.get(args.organizationId);
+
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
+    const limits = PLAN_LIMITS[organization.plan];
+    const creditsUsed = organization.creditsUsed || 0;
+    const storageUsed = organization.storageUsed || 0;
+
+    return {
+      creditsExceeded: creditsUsed >= limits.credits,
+      storageExceeded: storageUsed >= limits.storage,
+      creditsRemaining: Math.max(0, limits.credits - creditsUsed),
+      storageRemaining: Math.max(0, limits.storage - storageUsed),
     };
   },
 });

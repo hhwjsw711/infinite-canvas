@@ -15,7 +15,11 @@ export default defineSchema({
     email: v.optional(v.string()),
     logo: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro")),
-  }),
+    canceledAt: v.optional(v.number()),
+    subscriptionId: v.optional(v.string()),
+    creditsUsed: v.optional(v.number()),
+    storageUsed: v.optional(v.number()),
+  }).index("by_subscriptionId", ["subscriptionId"]),
   members: defineTable({
     userId: v.id("users"),
     organizationId: v.id("organizations"),

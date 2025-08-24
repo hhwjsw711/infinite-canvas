@@ -52,6 +52,39 @@ export const pay = action({
   },
 });
 
+export const pro = action({
+  args: { organizationId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const user = await ctx.auth.getUserIdentity();
+
+    if (!user) {
+      throw new Error("you must be logged in to subscribe");
+    }
+
+    if (!user.emailVerified) {
+      throw new Error("you must have a verified email to subscribe");
+    }
+
+    const domain = process.env.HOSTING_URL ?? "http://localhost:3000";
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: "2025-02-24.acacia",
+    });
+    const session = await stripe.checkout.sessions.create({
+      line_items: [{ price: process.env.STRIPE_PRO_PRICE_ID!, quantity: 1 }],
+      customer_email: user.email,
+      metadata: {
+        userId: user.subject,
+        organizationId: args.organizationId,
+      },
+      mode: "subscription",
+      success_url: `${domain}`,
+      cancel_url: `${domain}`,
+    });
+
+    return session.url!;
+  },
+});
+
 export const fulfill = internalAction({
   args: { signature: v.string(), payload: v.string() },
   handler: async (ctx, args) => {
@@ -84,7 +117,34 @@ export const fulfill = internalAction({
             userId,
             credits: creditsToAdd,
           });
+        } else if (completedEvent.mode === "subscription") {
+          const subscription = await stripe.subscriptions.retrieve(
+            completedEvent.subscription as string,
+          );
+
+          const organizationId = completedEvent.metadata
+            .organizationId as Id<"organizations">;
+
+          await ctx.runMutation(internal.organizations.updateSubscription, {
+            organizationId,
+            subscriptionId: subscription.id,
+            canceledAt: subscription.current_period_end * 1000,
+          });
         }
+      }
+
+      if (event.type === "invoice.payment_succeeded") {
+        const subscription = await stripe.subscriptions.retrieve(
+          completedEvent.subscription as string,
+        );
+
+        await ctx.runMutation(
+          internal.organizations.updateSubscriptionBySubId,
+          {
+            subscriptionId: subscription.id,
+            canceledAt: subscription.current_period_end * 1000,
+          },
+        );
       }
 
       return { success: true };
