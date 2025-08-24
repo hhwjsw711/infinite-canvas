@@ -17,8 +17,8 @@ export default defineSchema({
     plan: v.union(v.literal("free"), v.literal("pro")),
     canceledAt: v.optional(v.number()),
     subscriptionId: v.optional(v.string()),
-    creditsUsed: v.optional(v.number()),
-    storageUsed: v.optional(v.number()),
+    creditsRemaining: v.optional(v.number()),
+    storageRemaining: v.optional(v.number()),
   }).index("by_subscriptionId", ["subscriptionId"]),
   members: defineTable({
     userId: v.id("users"),

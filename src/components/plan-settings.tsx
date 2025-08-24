@@ -14,6 +14,8 @@ interface PlanSettingsProps {
   storageUsed: number;
   creditsLimit?: number;
   storageLimit?: number;
+  creditsRemaining?: number;
+  storageRemaining?: number;
 }
 
 export function PlanSettings({
@@ -21,9 +23,21 @@ export function PlanSettings({
   storageUsed = 0,
   creditsLimit = 1000,
   storageLimit = 1000,
+  creditsRemaining,
+  storageRemaining,
 }: PlanSettingsProps) {
   const maxCredits = creditsLimit;
   const maxStorage = storageLimit;
+
+  // Use remaining values if provided, otherwise calculate from used values
+  const displayCredits =
+    creditsRemaining !== undefined
+      ? creditsRemaining
+      : Math.max(0, creditsLimit - creditsUsed);
+  const displayStorage =
+    storageRemaining !== undefined
+      ? storageRemaining
+      : Math.max(0, storageLimit - storageUsed);
 
   const getPercentage = (value: number, max: number) =>
     Math.min(100, Math.round((value / max) * 100));
@@ -34,13 +48,13 @@ export function PlanSettings({
         <CardHeader>
           <CardTitle className="text-sm font-normal">Credits</CardTitle>
           <CardDescription>
-            {creditsUsed.toLocaleString()}/{maxCredits.toLocaleString()} Credits
-            Used
+            {displayCredits.toLocaleString()}/{maxCredits.toLocaleString()}{" "}
+            Credits Remaining
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Progress
-            value={getPercentage(creditsUsed, maxCredits)}
+            value={getPercentage(displayCredits, maxCredits)}
             className="h-2 rounded-full"
           />
         </CardContent>
@@ -50,13 +64,13 @@ export function PlanSettings({
         <CardHeader>
           <CardTitle className="text-sm font-normal">Storage</CardTitle>
           <CardDescription>
-            {storageUsed.toLocaleString()}/{maxStorage.toLocaleString()} Storage
-            Used
+            {displayStorage.toLocaleString()}/{maxStorage.toLocaleString()}{" "}
+            Storage Remaining
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Progress
-            value={getPercentage(storageUsed, maxStorage)}
+            value={getPercentage(displayStorage, maxStorage)}
             className="h-2 rounded-full"
           />
         </CardContent>

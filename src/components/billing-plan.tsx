@@ -27,7 +27,14 @@ export function BillingPlan() {
     return <BillingPlanSkeleton />;
   }
 
-  const { creditsUsed, storageUsed, creditsLimit, storageLimit } = planLimits;
+  const {
+    creditsUsed,
+    storageUsed,
+    creditsLimit,
+    storageLimit,
+    creditsRemaining,
+    storageRemaining,
+  } = planLimits;
 
   if (subscriptionStatus?.isActive) {
     const nextMonth = new Date();
@@ -40,6 +47,8 @@ export function BillingPlan() {
           storageUsed={storageUsed}
           creditsLimit={creditsLimit}
           storageLimit={storageLimit}
+          creditsRemaining={creditsRemaining}
+          storageRemaining={storageRemaining}
         />
 
         <div className="flex flex-col justify-between gap-4 p-6 transition-colors hover:bg-card/98 bg-card/95 backdrop-blur-xl rounded-3xl border shadow-[0_0_0_1px_rgba(50,50,50,0.16),0_4px_8px_-0.5px_rgba(50,50,50,0.08),0_8px_16px_-2px_rgba(50,50,50,0.04)] dark:shadow-none dark:outline dark:outline-1 dark:outline-border">
@@ -93,6 +102,8 @@ export function BillingPlan() {
         storageUsed={storageUsed}
         creditsLimit={creditsLimit}
         storageLimit={storageLimit}
+        creditsRemaining={creditsRemaining}
+        storageRemaining={storageRemaining}
       />
 
       <div

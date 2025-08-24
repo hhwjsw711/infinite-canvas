@@ -60,6 +60,8 @@ export const createDefaultForUser = internalMutation({
     const orgId = await ctx.db.insert("organizations", {
       name: args.name ?? "Personal",
       plan: "free",
+      creditsRemaining: PLAN_LIMITS.free.credits,
+      storageRemaining: PLAN_LIMITS.free.storage,
     });
 
     await ctx.db.insert("members", {
@@ -94,6 +96,8 @@ export const create = authMutation({
     const orgId = await ctx.db.insert("organizations", {
       name: args.name,
       plan: "free",
+      creditsRemaining: PLAN_LIMITS.free.credits,
+      storageRemaining: PLAN_LIMITS.free.storage,
     });
 
     await ctx.db.insert("members", {
@@ -630,6 +634,8 @@ export const updateSubscription = internalMutation({
       subscriptionId: args.subscriptionId,
       canceledAt: args.canceledAt,
       plan: "pro",
+      creditsRemaining: PLAN_LIMITS.pro.credits,
+      storageRemaining: PLAN_LIMITS.pro.storage,
     });
   },
 });
@@ -665,13 +671,19 @@ export const getPlanLimits = authQuery({
     }
 
     const limits = PLAN_LIMITS[organization.plan];
+    // Initialize remaining credits/storage if not set
+    const creditsRemaining = organization.creditsRemaining ?? limits.credits;
+    const storageRemaining = organization.storageRemaining ?? limits.storage;
 
     return {
       plan: organization.plan,
       creditsLimit: limits.credits,
       storageLimit: limits.storage,
-      creditsUsed: organization.creditsUsed || 0,
-      storageUsed: organization.storageUsed || 0,
+      creditsRemaining,
+      storageRemaining,
+      // Calculate used amounts for backward compatibility
+      creditsUsed: Math.max(0, limits.credits - creditsRemaining),
+      storageUsed: Math.max(0, limits.storage - storageRemaining),
     };
   },
 });
@@ -710,17 +722,27 @@ export const updateUsage = internalMutation({
       throw new Error("Organization not found");
     }
 
-    const currentCreditsUsed = organization.creditsUsed || 0;
-    const currentStorageUsed = organization.storageUsed || 0;
+    const limits = PLAN_LIMITS[organization.plan];
+    const currentCreditsRemaining =
+      organization.creditsRemaining ?? limits.credits;
+    const currentStorageRemaining =
+      organization.storageRemaining ?? limits.storage;
 
-    const updates: { creditsUsed?: number; storageUsed?: number } = {};
+    const updates: { creditsRemaining?: number; storageRemaining?: number } =
+      {};
 
     if (args.creditsToAdd !== undefined) {
-      updates.creditsUsed = Math.max(0, currentCreditsUsed + args.creditsToAdd);
+      updates.creditsRemaining = Math.max(
+        0,
+        currentCreditsRemaining - args.creditsToAdd,
+      );
     }
 
     if (args.storageToAdd !== undefined) {
-      updates.storageUsed = Math.max(0, currentStorageUsed + args.storageToAdd);
+      updates.storageRemaining = Math.max(
+        0,
+        currentStorageRemaining - args.storageToAdd,
+      );
     }
 
     if (Object.keys(updates).length > 0) {
@@ -740,14 +762,14 @@ export const checkLimits = authQuery({
     }
 
     const limits = PLAN_LIMITS[organization.plan];
-    const creditsUsed = organization.creditsUsed || 0;
-    const storageUsed = organization.storageUsed || 0;
+    const creditsRemaining = organization.creditsRemaining ?? limits.credits;
+    const storageRemaining = organization.storageRemaining ?? limits.storage;
 
     return {
-      creditsExceeded: creditsUsed >= limits.credits,
-      storageExceeded: storageUsed >= limits.storage,
-      creditsRemaining: Math.max(0, limits.credits - creditsUsed),
-      storageRemaining: Math.max(0, limits.storage - storageUsed),
+      creditsExceeded: creditsRemaining <= 0,
+      storageExceeded: storageRemaining <= 0,
+      creditsRemaining,
+      storageRemaining,
     };
   },
 });
