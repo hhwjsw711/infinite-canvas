@@ -59,6 +59,7 @@ export function BillingPlan() {
 
           <div className="flex flex-col items-start gap-3">
             <div className="space-y-2 text-sm text-secondary-foreground/80">
+              <p>Unlimited video generation with all premium features</p>
               {subscriptionStatus.isCanceled &&
               subscriptionStatus.canceledAt ? (
                 <p className="text-xs text-muted-foreground">
