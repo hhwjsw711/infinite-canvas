@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery, query } from "./_generated/server";
 import { authMutation, authQuery } from "./util";
-import { internal } from "./_generated/api";
+import { internal, api } from "./_generated/api";
 
 const FREE_CREDITS = 5;
 
@@ -63,6 +63,12 @@ export const createUser = internalMutation({
 
     await ctx.runMutation(internal.organizations.createDefaultForUser, {
       userId,
+    });
+
+    // Send welcome email asynchronously
+    await ctx.scheduler.runAfter(0, api.emails.sendWelcomeEmail, {
+      name: args.name || "there",
+      email: args.email,
     });
 
     return { id: userId };

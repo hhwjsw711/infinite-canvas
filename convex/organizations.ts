@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { authMutation, authQuery } from "./util";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { api } from "./_generated/api";
+import { getAppUrl } from "../src/lib/url";
 
 // Plan limits constants
 const PLAN_LIMITS = {
@@ -456,6 +458,23 @@ export const createInvitation = authMutation({
       token,
       expiresAt,
       status: "pending",
+    });
+
+    // Get organization and inviter details for email
+    const organization = await ctx.db.get(args.organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
+    // Send invitation email asynchronously
+    const inviteLink = `${getAppUrl()}/invite/${token}`;
+    await ctx.scheduler.runAfter(0, api.emails.sendInviteEmail, {
+      invitedByUsername: ctx.user.name || ctx.user.email || "Team Member",
+      invitedByEmail: ctx.user.email || "",
+      teamName: organization.name,
+      inviteLink,
+      inviteeEmail: args.email,
+      organizationName: organization.name,
     });
 
     return null;
