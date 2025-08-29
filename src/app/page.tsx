@@ -24,6 +24,7 @@ import {
   SunIcon,
   MoonIcon,
   ExternalLink,
+  MessageCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -116,6 +117,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { GithubBadge } from "@/components/canvas/GithubBadge";
 import { GenerationsIndicator } from "@/components/generations-indicator";
+
+// Add this with other imports around line 118
+import Chat from "@/components/chat/chat";
 
 export default function OverlayPage() {
   const { theme, setTheme } = useTheme();
@@ -229,6 +233,9 @@ export default function OverlayPage() {
 
   // Track when generation completes
   const [previousGenerationCount, setPreviousGenerationCount] = useState(0);
+
+  // Add state for chat visibility
+  const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
     const currentCount =
@@ -2534,6 +2541,36 @@ export default function OverlayPage() {
     sendBackward,
   ]);
 
+  const handleChatImageGenerated = useCallback(
+    (imageUrl: string) => {
+      const id = `chat-generated-${Date.now()}-${Math.random()}`;
+      const viewportCenterX =
+        (canvasSize.width / 2 - viewport.x) / viewport.scale;
+      const viewportCenterY =
+        (canvasSize.height / 2 - viewport.y) / viewport.scale;
+
+      const newImage: PlacedImage = {
+        id,
+        src: imageUrl,
+        x: viewportCenterX - 256,
+        y: viewportCenterY - 256,
+        width: 512,
+        height: 512,
+        rotation: 0,
+        isGenerated: true,
+      };
+
+      setImages((prev) => [...prev, newImage]);
+      setSelectedIds([id]);
+
+      toast({
+        title: "Image generated",
+        description: "The AI-generated image has been added to the canvas",
+      });
+    },
+    [canvasSize, viewport, toast],
+  );
+
   return (
     <div
       className="bg-background text-foreground font-focal relative flex flex-col w-full overflow-hidden h-screen"
@@ -3946,6 +3983,70 @@ export default function OverlayPage() {
         hiddenVideoControlsIds={hiddenVideoControlsIds}
         setVideos={setVideos}
       />
+
+      {/* Chat UI */}
+      <div className="fixed right-4 top-4 bottom-4 z-50">
+        <AnimatePresence>
+          {!showChat && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="absolute bottom-0 right-0"
+            >
+              <Button
+                onClick={() => setShowChat(true)}
+                className="shadow-lg rounded-full h-14 w-14 md:w-auto md:h-auto md:rounded-lg"
+                variant="primary"
+                size="lg"
+              >
+                <MessageCircle className="h-5 w-5 md:mr-2" />
+                <span className="hidden md:inline">Chat</span>
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showChat && (
+            <motion.div
+              initial={{ opacity: 0, x: 20, scale: 0.95 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-card border rounded-2xl shadow-2xl w-[95vw] md:w-[500px] lg:w-[500px] h-full overflow-hidden flex flex-col"
+            >
+              <div className="p-4 border-b flex items-center justify-between shrink-0 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <MessageCircle className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">AI Assistant</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Powered by GPT-4
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setShowChat(false)}
+                  className="hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-hidden bg-background">
+                <Chat
+                  onImageGenerated={handleChatImageGenerated}
+                  customApiKey={customApiKey}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
