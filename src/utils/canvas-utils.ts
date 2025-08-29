@@ -72,11 +72,11 @@ export const canvasToScreen = (
   };
 };
 
-// Calculate bounding box for an image considering rotation
+// Calculate bounding box for an element (image or video) considering rotation
 export const calculateBoundingBox = (
-  image: PlacedImage,
+  element: PlacedImage | PlacedVideo,
 ): { x: number; y: number; width: number; height: number } => {
-  const { x, y, width, height, rotation } = image;
+  const { x, y, width, height, rotation } = element;
 
   // If no rotation, return simple bounding box
   if (!rotation || rotation === 0) {
@@ -121,5 +121,51 @@ export const calculateBoundingBox = (
     y: y + minY,
     width: maxX - minX,
     height: maxY - minY,
+  };
+};
+
+// Calculate the bounding box of selected images and videos
+export const calculateSelectionBounds = (
+  images: PlacedImage[],
+  videos: PlacedVideo[],
+  selectedIds: string[],
+) => {
+  if (selectedIds.length === 0) return null;
+
+  const selectedImages = images.filter((img) => selectedIds.includes(img.id));
+  const selectedVideos = videos.filter((vid) => selectedIds.includes(vid.id));
+
+  if (selectedImages.length === 0 && selectedVideos.length === 0) return null;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  // Process selected images
+  selectedImages.forEach((image) => {
+    const bounds = calculateBoundingBox(image);
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width);
+    maxY = Math.max(maxY, bounds.y + bounds.height);
+  });
+
+  // Process selected videos (using same bounding box calculation as images)
+  selectedVideos.forEach((video) => {
+    const bounds = calculateBoundingBox(video);
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width);
+    maxY = Math.max(maxY, bounds.y + bounds.height);
+  });
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
   };
 };

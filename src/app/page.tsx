@@ -82,6 +82,7 @@ import type {
 import {
   imageToCanvasElement,
   videoToCanvasElement,
+  calculateSelectionBounds,
 } from "@/utils/canvas-utils";
 import { checkOS } from "@/utils/os-utils";
 import { convertImageToVideo } from "@/utils/video-utils";
@@ -174,7 +175,7 @@ export default function OverlayPage() {
   });
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [isPanningCanvas, setIsPanningCanvas] = useState(false);
-  const [lastPanPosition, setLastPanPosition] = useState({ x: 0, y: 0 });
+  const [isSpacebarHeld, setIsSpacebarHeld] = useState(false);
   const [croppingImageId, setCroppingImageId] = useState<string | null>(null);
   const [viewport, setViewport] = useState({
     x: 0,
@@ -1098,6 +1099,34 @@ export default function OverlayPage() {
     activeGenerations.size,
   ]);
 
+  // Simple zoom to selection function
+  const zoomToSelection = () => {
+    if (selectedIds.length === 0) return;
+
+    const selectionBounds = calculateSelectionBounds(
+      images,
+      videos,
+      selectedIds,
+    );
+    if (!selectionBounds) return;
+
+    // Calculate scale to fit selection with padding
+    const padding = 100;
+    const scaleX = (canvasSize.width - padding * 2) / selectionBounds.width;
+    const scaleY = (canvasSize.height - padding * 2) / selectionBounds.height;
+    const scale = Math.min(scaleX, scaleY, 2); // Allow up to 200% zoom
+
+    // Center the selection
+    const centerX = canvasSize.width / 2;
+    const centerY = canvasSize.height / 2;
+
+    setViewport({
+      x: centerX - selectionBounds.centerX * scale,
+      y: centerY - selectionBounds.centerY * scale,
+      scale: Math.max(0.1, Math.min(5, scale)),
+    });
+  };
+
   // Load default images only if no saved state
   useEffect(() => {
     if (!isStorageLoaded) return;
@@ -1380,8 +1409,8 @@ export default function OverlayPage() {
     const stage = stageRef.current;
     if (!stage) return;
 
-    // Check if this is a pinch gesture (ctrl key is pressed on trackpad pinch)
-    if (e.evt.ctrlKey) {
+    // Check if spacebar is held for zoom mode or pinch gesture (ctrl key on trackpad)
+    if (isSpacebarHeld || e.evt.ctrlKey) {
       // This is a pinch-to-zoom gesture
       const oldScale = viewport.scale;
       const pointer = stage.getPointerPosition();
@@ -1573,13 +1602,17 @@ export default function OverlayPage() {
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const clickedOnEmpty = e.target === e.target.getStage();
     const stage = e.target.getStage();
-    const mouseButton = e.evt.button; // 0 = left, 1 = middle, 2 = right
+    const isLeftButton = e.evt.button === 0;
 
-    // If middle mouse button, start panning
-    if (mouseButton === 1) {
-      e.evt.preventDefault();
+    // If spacebar is held and left mouse button, let Konva handle panning
+    if (isSpacebarHeld && isLeftButton) {
+      // Don't prevent default - let Konva handle the drag
       setIsPanningCanvas(true);
-      setLastPanPosition({ x: e.evt.clientX, y: e.evt.clientY });
+      return;
+    }
+
+    // Only proceed with left mouse button for other interactions
+    if (!isLeftButton) {
       return;
     }
 
@@ -1597,7 +1630,7 @@ export default function OverlayPage() {
     }
 
     // Start selection box when left-clicking on empty space
-    if (clickedOnEmpty && !croppingImageId && mouseButton === 0) {
+    if (clickedOnEmpty && !croppingImageId) {
       const pos = stage?.getPointerPosition();
       if (pos) {
         // Convert screen coordinates to canvas coordinates
@@ -1622,18 +1655,8 @@ export default function OverlayPage() {
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
 
-    // Handle canvas panning with middle mouse
+    // Skip manual panning - Konva handles it now
     if (isPanningCanvas) {
-      const deltaX = e.evt.clientX - lastPanPosition.x;
-      const deltaY = e.evt.clientY - lastPanPosition.y;
-
-      setViewport((prev) => ({
-        ...prev,
-        x: prev.x + deltaX,
-        y: prev.y + deltaY,
-      }));
-
-      setLastPanPosition({ x: e.evt.clientX, y: e.evt.clientY });
       return;
     }
 
@@ -1660,6 +1683,7 @@ export default function OverlayPage() {
     // Stop canvas panning
     if (isPanningCanvas) {
       setIsPanningCanvas(false);
+      // Viewport update is handled by Stage's onDragEnd
       return;
     }
 
@@ -2507,15 +2531,56 @@ export default function OverlayPage() {
           scale: newScale,
         });
       }
-      // Reset zoom
-      else if (e.key === "0" && (e.metaKey || e.ctrlKey)) {
+      // Reset selected images transformations
+      else if (e.key === "0" && (e.metaKey || e.ctrlKey) && !isInputElement) {
         e.preventDefault();
         setViewport({ x: 0, y: 0, scale: 1 });
+      }
+      // Zoom to selection (Ctrl/Cmd+F)
+      else if (e.key === "f" && (e.metaKey || e.ctrlKey) && !isInputElement) {
+        e.preventDefault();
+        zoomToSelection();
+      }
+      // Spacebar for pan mode
+      else if (e.key === " " && !isInputElement) {
+        e.preventDefault();
+        setIsSpacebarHeld(true);
+      }
+      // Arrow keys for panning
+      else if (
+        !isInputElement &&
+        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
+      ) {
+        e.preventDefault();
+        const panStep = e.shiftKey ? 100 : 30; // Larger steps with shift
+
+        switch (e.key) {
+          case "ArrowUp":
+            setViewport((prev) => ({ ...prev, y: prev.y + panStep }));
+            break;
+          case "ArrowDown":
+            setViewport((prev) => ({ ...prev, y: prev.y - panStep }));
+            break;
+          case "ArrowLeft":
+            setViewport((prev) => ({ ...prev, x: prev.x + panStep }));
+            break;
+          case "ArrowRight":
+            setViewport((prev) => ({ ...prev, x: prev.x - panStep }));
+            break;
+        }
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      // Currently no key up handlers needed
+      // Release spacebar
+      if (e.key === " ") {
+        e.preventDefault();
+        setIsSpacebarHeld(false);
+        // Stop panning if currently panning
+        if (isPanningCanvas) {
+          setIsPanningCanvas(false);
+        }
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -2540,6 +2605,7 @@ export default function OverlayPage() {
     sendToBack,
     bringForward,
     sendBackward,
+    isPanningCanvas,
   ]);
 
   const handleChatImageGenerated = useCallback(
@@ -2668,7 +2734,11 @@ export default function OverlayPage() {
                   width: `${canvasSize.width}px`,
                   minHeight: `${canvasSize.height}px`,
                   minWidth: `${canvasSize.width}px`,
-                  cursor: isPanningCanvas ? "grabbing" : "default",
+                  cursor: isPanningCanvas
+                    ? "grabbing"
+                    : isSpacebarHeld
+                      ? "grab"
+                      : "default",
                   WebkitTouchCallout: "none", // Add this for iOS
                   touchAction: "none", // For touch devices
                 }}
@@ -2682,12 +2752,28 @@ export default function OverlayPage() {
                     y={viewport.y}
                     scaleX={viewport.scale}
                     scaleY={viewport.scale}
-                    draggable={false}
+                    draggable={isPanningCanvas || isSpacebarHeld}
                     onDragStart={(e) => {
-                      e.evt?.preventDefault();
+                      // Only allow dragging when in pan mode
+                      if (!isPanningCanvas && !isSpacebarHeld) {
+                        e.evt.preventDefault();
+                      }
+                    }}
+                    onDragMove={() => {
+                      // Optional: Update minimap position during drag
+                      // This is lightweight and won't cause performance issues
                     }}
                     onDragEnd={(e) => {
-                      e.evt?.preventDefault();
+                      // Only update viewport if we were actually panning
+                      if (isPanningCanvas || isSpacebarHeld) {
+                        const stage = e.target;
+                        setViewport({
+                          x: stage.x(),
+                          y: stage.y(),
+                          scale: viewport.scale,
+                        });
+                      }
+                      setIsPanningCanvas(false);
                     }}
                     onMouseDown={handleMouseDown}
                     onMouseMove={handleMouseMove}
@@ -2780,7 +2866,12 @@ export default function OverlayPage() {
                       {/* Render images */}
                       {images
                         .filter((image) => {
-                          // Performance optimization: only render visible images
+                          // During panning, show ALL images to prevent disappearing
+                          if (isPanningCanvas || isSpacebarHeld) {
+                            return true;
+                          }
+
+                          // Performance optimization: only render visible images when not panning
                           const buffer = 100; // pixels buffer
                           const viewBounds = {
                             left: -viewport.x / viewport.scale - buffer,
@@ -2859,7 +2950,12 @@ export default function OverlayPage() {
                       {/* Render videos */}
                       {videos
                         .filter((video) => {
-                          // Performance optimization: only render visible videos
+                          // During panning, show ALL videos to prevent disappearing
+                          if (isPanningCanvas || isSpacebarHeld) {
+                            return true;
+                          }
+
+                          // Performance optimization: only render visible videos when not panning
                           const buffer = 100; // pixels buffer
                           const viewBounds = {
                             left: -viewport.x / viewport.scale - buffer,
@@ -3159,6 +3255,26 @@ export default function OverlayPage() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Pan mode indicator */}
+                {isSpacebarHeld && (
+                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-blue-500/10 border border-blue-500/20 text-blue-500 px-3 py-1 rounded text-sm font-medium flex items-center gap-2 animate-in fade-in-0 zoom-in-95 duration-200">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                    <span>Pan mode</span>
+                  </div>
+                )}
 
                 {/* Action buttons row */}
                 <div className="flex items-center gap-1">
@@ -3612,6 +3728,8 @@ export default function OverlayPage() {
             viewport={viewport}
             setViewport={setViewport}
             canvasSize={canvasSize}
+            images={images}
+            videos={videos}
           />
 
           <PoweredByFalBadge />
