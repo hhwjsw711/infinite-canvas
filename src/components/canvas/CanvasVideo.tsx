@@ -16,6 +16,9 @@ import Konva from "konva";
 import type { PlacedVideo } from "@/types/canvas";
 import { throttle } from "@/utils/performance";
 
+// Configure Konva to only allow left mouse button for dragging
+Konva.dragButtons = [0];
+
 interface CanvasVideoProps {
   video: PlacedVideo;
   isSelected: boolean;
@@ -55,7 +58,6 @@ export const CanvasVideo: React.FC<CanvasVideoProps> = ({
   const trRef = useRef<Konva.Transformer>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [isDraggable, setIsDraggable] = useState(true);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(
     null,
   );
@@ -350,7 +352,7 @@ export const CanvasVideo: React.FC<CanvasVideoProps> = ({
               }
             : undefined
         }
-        draggable={isDraggable}
+        draggable={true}
         onClick={(e) => {
           // Prevent event propagation issues
           e.cancelBubble = true;
@@ -368,22 +370,6 @@ export const CanvasVideo: React.FC<CanvasVideoProps> = ({
         onDblTap={onDoubleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onMouseDown={(e) => {
-          // Only allow dragging with left mouse button (0)
-          // Middle mouse (1) and right mouse (2) should not drag videos
-          const isLeftButton = e.evt.button === 0;
-          setIsDraggable(isLeftButton);
-
-          // For middle mouse button, don't stop propagation
-          // Let it bubble up to the stage for canvas panning
-          if (e.evt.button === 1) {
-            return;
-          }
-        }}
-        onMouseUp={() => {
-          // Re-enable dragging after mouse up
-          setIsDraggable(true);
-        }}
         onDragStart={(e) => {
           // Stop propagation to prevent stage from being dragged
           e.cancelBubble = true;

@@ -95,6 +95,7 @@ import { ZoomControls } from "@/components/canvas/ZoomControls";
 import { MobileToolbar } from "@/components/canvas/MobileToolbar";
 import { PoweredByFalBadge } from "@/components/canvas/PoweredByFalBadge";
 import { CanvasContextMenu } from "@/components/canvas/CanvasContextMenu";
+import { ShortcutsPanel } from "@/components/canvas/ShortcutsPanel";
 import { useTheme } from "next-themes";
 import { VideoOverlays } from "@/components/canvas/VideoOverlays";
 import { DimensionDisplay } from "@/components/canvas/DimensionDisplay";
@@ -3592,8 +3593,12 @@ export default function OverlayPage() {
               videos={videos}
               viewport={viewport}
               canvasSize={canvasSize}
+              onViewportChange={setViewport}
             />
           )}
+
+          {/* Shortcuts panel - under minimap */}
+          <ShortcutsPanel />
 
           {/* {isSaving && (
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-30 bg-background/95 border rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm">
@@ -3610,7 +3615,7 @@ export default function OverlayPage() {
           />
 
           <PoweredByFalBadge />
-          <GithubBadge />
+          {/* <GithubBadge /> */}
 
           {/* Dimension display for selected images */}
           <DimensionDisplay
@@ -3985,7 +3990,7 @@ export default function OverlayPage() {
       />
 
       {/* Chat UI */}
-      <div className="fixed right-4 top-4 bottom-4 z-50">
+      <div className="fixed right-4 top-4 bottom-4 z-50 hidden md:block">
         <AnimatePresence>
           {!showChat && (
             <motion.div
