@@ -83,6 +83,10 @@ import {
   imageToCanvasElement,
   videoToCanvasElement,
   calculateSelectionBounds,
+  findEmptySpaceForElement,
+  elementNeedsReset,
+  checkElementOverlapOrProximity,
+  calculateBoundsFromCoordinates,
 } from "@/utils/canvas-utils";
 import { checkOS } from "@/utils/os-utils";
 import { convertImageToVideo } from "@/utils/video-utils";
@@ -122,6 +126,9 @@ import { GenerationsIndicator } from "@/components/generations-indicator";
 
 // Add this with other imports around line 118
 import Chat from "@/components/chat/chat";
+
+// Standard size for reset functionality
+const RESET_IMAGE_SIZE = 200;
 
 export default function OverlayPage() {
   const { theme, setTheme } = useTheme();
@@ -2531,10 +2538,259 @@ export default function OverlayPage() {
           scale: newScale,
         });
       }
-      // Reset selected images transformations
+      // Reset selected elements transformations
       else if (e.key === "0" && (e.metaKey || e.ctrlKey) && !isInputElement) {
         e.preventDefault();
-        setViewport({ x: 0, y: 0, scale: 1 });
+
+        if (selectedIds.length === 0) return;
+
+        // Check which selected elements actually need resetting
+        const selectedImages = images.filter((img) =>
+          selectedIds.includes(img.id),
+        );
+        const selectedVideos = videos.filter((vid) =>
+          selectedIds.includes(vid.id),
+        );
+
+        const imagesToReset = selectedImages.filter((img) =>
+          elementNeedsReset(img, [...images, ...videos], 10, RESET_IMAGE_SIZE),
+        );
+        const videosToReset = selectedVideos.filter((vid) =>
+          elementNeedsReset(vid, [...images, ...videos], 10, RESET_IMAGE_SIZE),
+        );
+
+        // If no elements need resetting, do nothing
+        if (imagesToReset.length === 0 && videosToReset.length === 0) return;
+
+        saveToHistory();
+
+        // CALCULATE NEW COORDINATES DIRECTLY
+        const positionMap = new Map();
+        const resetCoordinates: Array<{
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        }> = [];
+        let repositionIndex = 0;
+
+        // Process each selected element to determine new coordinates
+        const allElements = [...images, ...videos];
+
+        // Process images
+        selectedImages.forEach((img) => {
+          if (!elementNeedsReset(img, allElements, 10, RESET_IMAGE_SIZE))
+            return;
+
+          // Calculate reset dimensions maintaining aspect ratio
+          const aspectRatio = img.width / img.height;
+          let resetWidth = RESET_IMAGE_SIZE;
+          let resetHeight = RESET_IMAGE_SIZE / aspectRatio;
+
+          if (resetHeight > RESET_IMAGE_SIZE) {
+            resetHeight = RESET_IMAGE_SIZE;
+            resetWidth = RESET_IMAGE_SIZE * aspectRatio;
+          }
+
+          // Check if element needs repositioning (overlapping/too close)
+          const needsReposition = allElements.some(
+            (otherEl) =>
+              otherEl.id !== img.id &&
+              checkElementOverlapOrProximity(img, otherEl),
+          );
+
+          if (needsReposition) {
+            const elementForSpaceFinding = {
+              ...img,
+              width: resetWidth,
+              height: resetHeight,
+            };
+            const newPosition = findEmptySpaceForElement(
+              elementForSpaceFinding,
+              allElements,
+              repositionIndex,
+            );
+            positionMap.set(img.id, newPosition);
+            resetCoordinates.push({
+              x: newPosition.x,
+              y: newPosition.y,
+              width: resetWidth,
+              height: resetHeight,
+            });
+            repositionIndex++;
+          } else {
+            // Element keeps current position but gets reset dimensions
+            resetCoordinates.push({
+              x: img.x,
+              y: img.y,
+              width: resetWidth,
+              height: resetHeight,
+            });
+          }
+        });
+
+        // Process videos
+        selectedVideos.forEach((vid) => {
+          if (!elementNeedsReset(vid, allElements, 10, RESET_IMAGE_SIZE))
+            return;
+
+          // Calculate reset dimensions maintaining aspect ratio
+          const aspectRatio = vid.width / vid.height;
+          let resetWidth = RESET_IMAGE_SIZE;
+          let resetHeight = RESET_IMAGE_SIZE / aspectRatio;
+
+          if (resetHeight > RESET_IMAGE_SIZE) {
+            resetHeight = RESET_IMAGE_SIZE;
+            resetWidth = RESET_IMAGE_SIZE * aspectRatio;
+          }
+
+          // Check if element needs repositioning (overlapping/too close)
+          const needsReposition = allElements.some(
+            (otherEl) =>
+              otherEl.id !== vid.id &&
+              checkElementOverlapOrProximity(vid, otherEl),
+          );
+
+          if (needsReposition) {
+            const elementForSpaceFinding = {
+              ...vid,
+              width: resetWidth,
+              height: resetHeight,
+            };
+            const newPosition = findEmptySpaceForElement(
+              elementForSpaceFinding,
+              allElements,
+              repositionIndex,
+            );
+            positionMap.set(vid.id, newPosition);
+            resetCoordinates.push({
+              x: newPosition.x,
+              y: newPosition.y,
+              width: resetWidth,
+              height: resetHeight,
+            });
+            repositionIndex++;
+          } else {
+            // Element keeps current position but gets reset dimensions
+            resetCoordinates.push({
+              x: vid.x,
+              y: vid.y,
+              width: resetWidth,
+              height: resetHeight,
+            });
+          }
+        });
+
+        // Calculate bounds of all reset elements using their new coordinates
+        const resetBounds = calculateBoundsFromCoordinates(resetCoordinates);
+
+        // Pan to center the reset elements at current zoom level (no zoom change)
+        if (resetBounds) {
+          const centerX = canvasSize.width / 2;
+          const centerY = canvasSize.height / 2;
+
+          setViewport({
+            x: centerX - resetBounds.centerX * viewport.scale,
+            y: centerY - resetBounds.centerY * viewport.scale,
+            scale: viewport.scale, // Keep current zoom level
+          });
+        }
+
+        // Update the images with the calculated coordinates
+        setImages((prev) => {
+          return prev.map((img) => {
+            if (
+              !selectedIds.includes(img.id) ||
+              !elementNeedsReset(
+                img,
+                [...prev, ...videos],
+                10,
+                RESET_IMAGE_SIZE,
+              )
+            ) {
+              return img;
+            }
+
+            // Calculate reset dimensions maintaining aspect ratio
+            const aspectRatio = img.width / img.height;
+            let resetWidth = RESET_IMAGE_SIZE;
+            let resetHeight = RESET_IMAGE_SIZE / aspectRatio;
+
+            if (resetHeight > RESET_IMAGE_SIZE) {
+              resetHeight = RESET_IMAGE_SIZE;
+              resetWidth = RESET_IMAGE_SIZE * aspectRatio;
+            }
+
+            const newPos = positionMap.get(img.id);
+            if (newPos) {
+              // Element needs rotation reset, size reset, and repositioning
+              return {
+                ...img,
+                x: newPos.x,
+                y: newPos.y,
+                rotation: 0,
+                width: resetWidth,
+                height: resetHeight,
+              };
+            } else {
+              // Element needs rotation and/or size reset but not repositioning
+              return {
+                ...img,
+                rotation: 0,
+                width: resetWidth,
+                height: resetHeight,
+              };
+            }
+          });
+        });
+
+        // Update the videos with the calculated coordinates
+        setVideos((prev) => {
+          return prev.map((vid) => {
+            if (
+              !selectedIds.includes(vid.id) ||
+              !elementNeedsReset(
+                vid,
+                [...images, ...prev],
+                10,
+                RESET_IMAGE_SIZE,
+              )
+            ) {
+              return vid;
+            }
+
+            // Calculate reset dimensions maintaining aspect ratio
+            const aspectRatio = vid.width / vid.height;
+            let resetWidth = RESET_IMAGE_SIZE;
+            let resetHeight = RESET_IMAGE_SIZE / aspectRatio;
+
+            if (resetHeight > RESET_IMAGE_SIZE) {
+              resetHeight = RESET_IMAGE_SIZE;
+              resetWidth = RESET_IMAGE_SIZE * aspectRatio;
+            }
+
+            const newPos = positionMap.get(vid.id);
+            if (newPos) {
+              // Element needs rotation reset, size reset, and repositioning
+              return {
+                ...vid,
+                x: newPos.x,
+                y: newPos.y,
+                rotation: 0,
+                width: resetWidth,
+                height: resetHeight,
+              };
+            } else {
+              // Element needs rotation and/or size reset but not repositioning
+              return {
+                ...vid,
+                rotation: 0,
+                width: resetWidth,
+                height: resetHeight,
+              };
+            }
+          });
+        });
       }
       // Zoom to selection (Ctrl/Cmd+F)
       else if (e.key === "f" && (e.metaKey || e.ctrlKey) && !isInputElement) {

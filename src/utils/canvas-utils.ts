@@ -169,3 +169,170 @@ export const calculateSelectionBounds = (
     centerY: (minY + maxY) / 2,
   };
 };
+
+// Find empty space on the canvas for an element (image or video)
+export const findEmptySpaceForElement = (
+  element: PlacedImage | PlacedVideo,
+  allElements: Array<PlacedImage | PlacedVideo>,
+  index: number = 0,
+  gap: number = 50,
+): { x: number; y: number } => {
+  // Filter out the current element from the list
+  const otherElements = allElements.filter((el) => el.id !== element.id);
+
+  if (otherElements.length === 0) {
+    // If no other elements, place at origin
+    return { x: 0, y: 0 };
+  }
+
+  // Find the rightmost edge of all elements
+  let rightmostX = -Infinity;
+  let topY = Infinity;
+
+  otherElements.forEach((el) => {
+    const bounds = calculateBoundingBox(el);
+    rightmostX = Math.max(rightmostX, bounds.x + bounds.width);
+    topY = Math.min(topY, bounds.y);
+  });
+
+  // Position new element to the right of existing elements
+  // If multiple elements are being reset, offset them horizontally
+  const x = rightmostX + gap + index * (element.width + gap);
+  const y = topY;
+
+  // Check if this position overlaps with any existing element
+  const proposedBounds = {
+    x,
+    y,
+    width: element.width,
+    height: element.height,
+  };
+
+  // Simple overlap check
+  let overlaps = false;
+  for (const otherElement of otherElements) {
+    const otherBounds = calculateBoundingBox(otherElement);
+    if (
+      proposedBounds.x < otherBounds.x + otherBounds.width &&
+      proposedBounds.x + proposedBounds.width > otherBounds.x &&
+      proposedBounds.y < otherBounds.y + otherBounds.height &&
+      proposedBounds.y + proposedBounds.height > otherBounds.y
+    ) {
+      overlaps = true;
+      break;
+    }
+  }
+
+  // If overlaps, try positioning below the existing elements
+  if (overlaps) {
+    let bottomY = -Infinity;
+    otherElements.forEach((el) => {
+      const bounds = calculateBoundingBox(el);
+      bottomY = Math.max(bottomY, bounds.y + bounds.height);
+    });
+
+    return {
+      x: gap + index * (element.width + gap),
+      y: bottomY + gap,
+    };
+  }
+
+  return { x, y };
+};
+
+// Check if two elements overlap or are too close
+export const checkElementOverlapOrProximity = (
+  el1: PlacedImage | PlacedVideo,
+  el2: PlacedImage | PlacedVideo,
+  minGap: number = 10,
+): boolean => {
+  // Get bounding boxes for both elements (considering rotation)
+  const bounds1 = calculateBoundingBox(el1);
+  const bounds2 = calculateBoundingBox(el2);
+
+  // Add gap to bounds for proximity check
+  const expandedBounds1 = {
+    x: bounds1.x - minGap,
+    y: bounds1.y - minGap,
+    width: bounds1.width + minGap * 2,
+    height: bounds1.height + minGap * 2,
+  };
+
+  // Check if expanded bounds overlap
+  return (
+    expandedBounds1.x < bounds2.x + bounds2.width &&
+    expandedBounds1.x + expandedBounds1.width > bounds2.x &&
+    expandedBounds1.y < bounds2.y + bounds2.height &&
+    expandedBounds1.y + expandedBounds1.height > bounds2.y
+  );
+};
+
+// Check if an element needs resetting (rotated, wrong size, or overlapping/too close to others)
+export const elementNeedsReset = (
+  element: PlacedImage | PlacedVideo,
+  allElements: Array<PlacedImage | PlacedVideo>,
+  minGap: number = 10,
+  resetSize: number = 200,
+): boolean => {
+  // Check if rotated
+  if (element.rotation !== 0) {
+    return true;
+  }
+
+  // Check if size differs from reset size (with small tolerance for aspect ratio adjustments)
+  const aspectRatio = element.width / element.height;
+  let expectedWidth = resetSize;
+  let expectedHeight = resetSize / aspectRatio;
+
+  if (expectedHeight > resetSize) {
+    expectedHeight = resetSize;
+    expectedWidth = resetSize * aspectRatio;
+  }
+
+  const tolerance = 1; // Allow 1px difference due to rounding
+  if (
+    Math.abs(element.width - expectedWidth) > tolerance ||
+    Math.abs(element.height - expectedHeight) > tolerance
+  ) {
+    return true;
+  }
+
+  // Check if overlapping or too close
+  for (const otherElement of allElements) {
+    if (otherElement.id === element.id) continue;
+
+    if (checkElementOverlapOrProximity(element, otherElement, minGap)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// Calculate bounding box from an array of coordinates and dimensions
+export const calculateBoundsFromCoordinates = (
+  items: Array<{ x: number; y: number; width: number; height: number }>,
+) => {
+  if (items.length === 0) return null;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  items.forEach((item) => {
+    minX = Math.min(minX, item.x);
+    minY = Math.min(minY, item.y);
+    maxX = Math.max(maxX, item.x + item.width);
+    maxY = Math.max(maxY, item.y + item.height);
+  });
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+  };
+};
