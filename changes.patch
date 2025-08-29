@@ -1,0 +1,143 @@
+diff --git a/package.json b/package.json
+index 6e340af..85d9ba3 100644
+--- a/package.json
++++ b/package.json
+@@ -16,6 +16,7 @@
+     "@dnd-kit/modifiers": "^9.0.0",
+     "@dnd-kit/sortable": "^10.0.0",
+     "@fal-ai/client": "^1.5.0",
++    "@fal-ai/server-proxy": "^1.1.1",
+     "@hookform/resolvers": "^4.1.3",
+     "@radix-ui/react-avatar": "^1.1.10",
+     "@radix-ui/react-checkbox": "^1.3.2",
+@@ -47,7 +48,9 @@
+     "@trpc/tanstack-react-query": "^11.4.2",
+     "@types/react": "^19.1.6",
+     "@types/react-syntax-highlighter": "^15.5.13",
++    "@upstash/ratelimit": "^2.0.5",
+     "@vercel/blob": "^1.1.1",
++    "@vercel/kv": "^3.0.0",
+     "@vercel/speed-insights": "^1.2.0",
+     "bcryptjs": "^3.0.2",
+     "bun": "^1.2.5",
+diff --git a/src/app/api/fal/route.ts b/src/app/api/fal/route.ts
+new file mode 100644
+index 0000000..9ea1f9a
+--- /dev/null
++++ b/src/app/api/fal/route.ts
+@@ -0,0 +1,26 @@
++import { route } from "@fal-ai/server-proxy/nextjs";
++import { NextRequest } from "next/server";
++import {
++  createRateLimiter,
++  RateLimiter,
++  shouldLimitRequest,
++} from "@/lib/ratelimit";
++
++const limiter: RateLimiter = {
++  perMinute: createRateLimiter(10, "60 s"),
++  perHour: createRateLimiter(30, "60 m"),
++  perDay: createRateLimiter(100, "24 h"),
++};
++
++export const POST = async (req: NextRequest) => {
++  const ip = req.headers.get("x-forwarded-for") || "";
++  const limiterResult = await shouldLimitRequest(limiter, ip);
++  if (limiterResult.shouldLimitRequest) {
++    return new Response(`Rate limit exceeded per ${limiterResult.period}`, {
++      status: 429,
++    });
++  }
++  return route.POST(req);
++};
++
++export const { GET, PUT } = route;
+\ No newline at end of file
+diff --git a/src/lib/ratelimit.ts b/src/lib/ratelimit.ts
+new file mode 100644
+index 0000000..a66dceb
+--- /dev/null
++++ b/src/lib/ratelimit.ts
+@@ -0,0 +1,50 @@
++import { Ratelimit } from "@upstash/ratelimit";
++import { kv } from "@vercel/kv";
++
++export type RateLimiter = {
++  perMinute: Ratelimit;
++  perHour: Ratelimit;
++  perDay: Ratelimit;
++};
++
++export const createRateLimiter = (tokens: number, window: string) =>
++  new Ratelimit({
++    redis: kv,
++    limiter: Ratelimit.slidingWindow(tokens, window as any),
++    analytics: true,
++  });
++
++type LimitPeriod = "perMinute" | "perHour" | "perDay";
++
++export const RATE_LIMIT_PERIOD_LABELS: Record<LimitPeriod, string> = {
++  perMinute: "minute",
++  perHour: "hour",
++  perDay: "day",
++};
++
++type LimitResult =
++  | {
++      shouldLimitRequest: false;
++    }
++  | { shouldLimitRequest: true; period: LimitPeriod };
++
++export const IS_RATE_LIMITER_ENABLED =
++  process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
++
++export async function shouldLimitRequest(
++  limiter: RateLimiter,
++  ip: string,
++): Promise<LimitResult> {
++  if (!IS_RATE_LIMITER_ENABLED) {
++    return { shouldLimitRequest: false };
++  }
++  const limits = ["perMinute", "perHour", "perDay"] as const;
++  const results = await Promise.all(
++    limits.map((limit) => limiter[limit].limit(ip)),
++  );
++  const limitRequestIndex = results.findIndex((result) => !result.success);
++  return {
++    shouldLimitRequest: limitRequestIndex >= 0,
++    period: limits[limitRequestIndex],
++  };
++}
+\ No newline at end of file
+diff --git a/src/server/trpc/routers/_app.ts b/src/server/trpc/routers/_app.ts
+index eba8455..ef785e9 100644
+--- a/src/server/trpc/routers/_app.ts
++++ b/src/server/trpc/routers/_app.ts
+@@ -1,13 +1,12 @@
+ import { z } from "zod";
+ import { publicProcedure, router } from "../init";
+-import { fal } from "@fal-ai/client";
+ import { tracked } from "@trpc/server";
++import { createFalClient } from "@fal-ai/client";
+ 
+-if (process.env.FAL_KEY) {
+-  fal.config({
+-    credentials: process.env.FAL_KEY,
+-  });
+-}
++const fal = createFalClient({
++  credentials: () => process.env.FAL_KEY as string,
++    proxyUrl: "/api/fal",
++});
+ 
+ export const appRouter = router({
+   hello: publicProcedure
+@@ -79,7 +78,6 @@ export const appRouter = router({
+           if (signal?.aborted) {
+             break;
+           }
+-          console.log("Event:", event);
+ 
+           const eventId = `${generationId}_${eventIndex++}`;
+ 
