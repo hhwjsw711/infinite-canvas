@@ -124,13 +124,25 @@ import { Switch } from "@/components/ui/switch";
 import { GithubBadge } from "@/components/canvas/GithubBadge";
 import { GenerationsIndicator } from "@/components/generations-indicator";
 
+// Import multiplayer components
+import { MultiplayerCursors } from "@/components/canvas/multiplayer/MultiplayerCursors";
+import { MultiplayerPanel } from "@/components/canvas/multiplayer/MultiplayerPanel";
+import { ConnectionStatus } from "@/components/canvas/multiplayer/ConnectionStatus";
+import { useMultiplayer } from "@/hooks/use-multiplayer";
+import { useAutoSave } from "@/hooks/use-auto-save";
+import { uploadImageToR2 } from "@/lib/cloudflare/image-handler";
+
 // Add this with other imports around line 118
 import Chat from "@/components/chat/chat";
 
 // Standard size for reset functionality
 const RESET_IMAGE_SIZE = 200;
 
-export default function OverlayPage() {
+interface CanvasProps {
+  roomId: string;
+}
+
+export default function OverlayPage({ roomId: propRoomId }: CanvasProps) {
   const { theme, setTheme } = useTheme();
   const [images, setImages] = useState<PlacedImage[]>([]);
   const [videos, setVideos] = useState<PlacedVideo[]>([]);
@@ -139,6 +151,9 @@ export default function OverlayPage() {
   const [visibleIndicators, setVisibleIndicators] = useState<Set<string>>(
     new Set(),
   );
+  const [showMultiplayerCursors, setShowMultiplayerCursors] = useState(true);
+  const [isMultiplayerPanelExpanded, setIsMultiplayerPanelExpanded] =
+    useState(false);
   const simpsonsStyle = styleModels.find((m) => m.id === "simpsons");
   const { toast } = useToast();
 
@@ -177,8 +192,8 @@ export default function OverlayPage() {
   >(new Set());
   // Use a consistent initial value for server and client to avoid hydration errors
   const [canvasSize, setCanvasSize] = useState({
-    width: 1200,
-    height: 800,
+    width: typeof window !== "undefined" ? window.innerWidth : 1200,
+    height: typeof window !== "undefined" ? window.innerHeight : 800,
   });
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [isPanningCanvas, setIsPanningCanvas] = useState(false);
@@ -282,6 +297,63 @@ export default function OverlayPage() {
   const falClient = useFalClient(customApiKey);
 
   const trpc = useTRPC();
+
+  // Multiplayer integration
+  const {
+    roomId,
+    presenceMap,
+    isMultiplayer,
+    images: multiplayerImages,
+    handleImageUpdate,
+    handleImageAdd,
+    handleImageRemove,
+    handleCursorMove,
+    handleViewportChange,
+    handleGenerationStart,
+    handleGenerationComplete,
+    followingUserId,
+    followUser,
+    connectionState,
+    syncAdapter,
+  } = useMultiplayer(propRoomId);
+
+  // Auto-save integration
+  const { updateState: updateAutoSaveState, isSaving } = useAutoSave({
+    canvasId: roomId,
+    enabled: isMultiplayer && !!roomId,
+    debounceMs: 2000,
+    onSaveStart: () => setIsSaving(true),
+    onSaveComplete: () => {
+      setIsSaving(false);
+    },
+    onSaveError: (error) => {
+      setIsSaving(false);
+      toast({
+        title: "Auto-save failed",
+        description:
+          "Your changes may not be saved. Please check your connection.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Trigger auto-save when images or viewport changes
+  useEffect(() => {
+    if (isMultiplayer && roomId && images.length > 0) {
+      updateAutoSaveState({
+        images,
+        videos: [], // Add videos when implemented
+        viewport,
+      });
+    }
+  }, [images, viewport, isMultiplayer, roomId, updateAutoSaveState]);
+
+  // Sync viewport changes
+  useEffect(() => {
+    if (!followingUserId) {
+      handleViewportChange(viewport);
+    }
+  }, [viewport, followingUserId, handleViewportChange]);
 
   // Direct FAL upload function using proxy
 
@@ -802,6 +874,12 @@ export default function OverlayPage() {
 
   // Save current state to storage
   const saveToStorage = useCallback(async () => {
+    if (isMultiplayer && roomId) {
+      // In multiplayer mode, auto-save handles persistence
+      return;
+    }
+
+    // For non-multiplayer mode, still use local storage
     try {
       setIsSaving(true);
 
@@ -1325,70 +1403,114 @@ export default function OverlayPage() {
   };
 
   // Handle file upload
-  const handleFileUpload = (
+  const handleFileUpload = async (
     files: FileList | null,
     position?: { x: number; y: number },
   ) => {
     if (!files) return;
 
-    Array.from(files).forEach((file, index) => {
+    // Process files sequentially to avoid overwhelming the upload
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
       if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
+        try {
+          const reader = new FileReader();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
           const id = `img-${Date.now()}-${Math.random()}`;
           const img = new window.Image();
           img.crossOrigin = "anonymous"; // Enable CORS
-          img.onload = () => {
-            const aspectRatio = img.width / img.height;
-            const maxSize = 300;
-            let width = maxSize;
-            let height = maxSize / aspectRatio;
 
-            if (height > maxSize) {
-              height = maxSize;
-              width = maxSize * aspectRatio;
-            }
+          await new Promise((resolve, reject) => {
+            img.onload = async () => {
+              const aspectRatio = img.width / img.height;
+              const maxSize = 300;
+              let width = maxSize;
+              let height = maxSize / aspectRatio;
 
-            // Place image at position or center of current viewport
-            let x, y;
-            if (position) {
-              // Convert screen position to canvas coordinates
-              x = (position.x - viewport.x) / viewport.scale - width / 2;
-              y = (position.y - viewport.y) / viewport.scale - height / 2;
-            } else {
-              // Center of viewport
-              const viewportCenterX =
-                (canvasSize.width / 2 - viewport.x) / viewport.scale;
-              const viewportCenterY =
-                (canvasSize.height / 2 - viewport.y) / viewport.scale;
-              x = viewportCenterX - width / 2;
-              y = viewportCenterY - height / 2;
-            }
+              if (height > maxSize) {
+                height = maxSize;
+                width = maxSize * aspectRatio;
+              }
 
-            // Add offset for multiple files
-            if (index > 0) {
-              x += index * 20;
-              y += index * 20;
-            }
+              // Place image at position or center of current viewport
+              let x, y;
+              if (position) {
+                // Convert screen position to canvas coordinates
+                x = (position.x - viewport.x) / viewport.scale - width / 2;
+                y = (position.y - viewport.y) / viewport.scale - height / 2;
+              } else {
+                // Center of viewport
+                const viewportCenterX =
+                  (canvasSize.width / 2 - viewport.x) / viewport.scale;
+                const viewportCenterY =
+                  (canvasSize.height / 2 - viewport.y) / viewport.scale;
+                x = viewportCenterX - width / 2;
+                y = viewportCenterY - height / 2;
+              }
 
-            setImages((prev) => [
-              ...prev,
-              {
+              // Add offset for multiple files
+              if (index > 0) {
+                x += index * 20;
+                y += index * 20;
+              }
+
+              let imageSrc = dataUrl;
+              let cloudImageId: string | undefined;
+
+              // Upload to R2 if we have a room ID (multiplayer mode)
+              if (roomId && isMultiplayer) {
+                try {
+                  const cloudImage = await uploadImageToR2(
+                    dataUrl,
+                    roomId,
+                    trpc,
+                  );
+                  imageSrc = cloudImage.url;
+                  cloudImageId = cloudImage.id;
+                } catch (error) {
+                  // Failed to upload to R2, will use data URL
+                  // Fall back to data URL if upload fails
+                }
+              }
+
+              const newImage: PlacedImage = {
                 id,
-                src: e.target?.result as string,
+                src: imageSrc,
                 x,
                 y,
                 width,
                 height,
                 rotation: 0,
-              },
-            ]);
-          };
-          img.src = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
+                cloudImageId,
+              };
+
+              setImages((prev) => [...prev, newImage]);
+
+              // Notify multiplayer about the new image
+              if (isMultiplayer) {
+                handleImageAdd(newImage);
+              }
+
+              resolve(null);
+            };
+            img.onerror = reject;
+            img.src = dataUrl;
+          });
+        } catch (error) {
+          console.error("[Canvas] Failed to process image:", error);
+          toast({
+            title: "Failed to upload image",
+            description: "Please try again.",
+            variant: "destructive",
+          });
+        }
       }
-    });
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -1415,6 +1537,15 @@ export default function OverlayPage() {
 
     const stage = stageRef.current;
     if (!stage) return;
+
+    // Break following if user interacts with viewport
+    if (followingUserId) {
+      followUser(null);
+      toast({
+        description: "Stopped following user",
+        duration: 2000,
+      });
+    }
 
     // Check if spacebar is held for zoom mode or pinch gesture (ctrl key on trackpad)
     if (isSpacebarHeld || e.evt.ctrlKey) {
@@ -1615,6 +1746,14 @@ export default function OverlayPage() {
     if (isSpacebarHeld && isLeftButton) {
       // Don't prevent default - let Konva handle the drag
       setIsPanningCanvas(true);
+      // Break following if user starts panning
+      if (followingUserId) {
+        followUser(null);
+        toast({
+          description: "Stopped following user",
+          duration: 2000,
+        });
+      }
       return;
     }
 
@@ -1661,6 +1800,19 @@ export default function OverlayPage() {
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
+
+    // Broadcast cursor position in multiplayer
+    if (isMultiplayer && handleCursorMove) {
+      const pointerPosition = stage?.getPointerPosition();
+      if (pointerPosition) {
+        // Convert screen coordinates to canvas coordinates
+        const canvasPosition = {
+          x: viewport.x + pointerPosition.x / viewport.scale,
+          y: viewport.y + pointerPosition.y / viewport.scale,
+        };
+        handleCursorMove(canvasPosition);
+      }
+    }
 
     // Skip manual panning - Konva handles it now
     if (isPanningCanvas) {
@@ -2433,8 +2585,13 @@ export default function OverlayPage() {
       const isInputElement =
         e.target && (e.target as HTMLElement).matches("input, textarea");
 
+      // Toggle multiplayer panel with Cmd+K
+      if ((e.metaKey || e.ctrlKey) && e.key === "k" && !isInputElement) {
+        e.preventDefault();
+        setIsMultiplayerPanelExpanded((prev) => !prev);
+      }
       // Undo/Redo
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+      else if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
       } else if (
@@ -2952,6 +3109,17 @@ export default function OverlayPage() {
         />
       ))}
 
+      {/* Multiplayer components - Always render since canvas is only used with roomId */}
+      <MultiplayerPanel
+        onToggleCursors={setShowMultiplayerCursors}
+        isExpanded={isMultiplayerPanelExpanded}
+        onExpandChange={setIsMultiplayerPanelExpanded}
+        onFollowUser={followUser}
+        followingUserId={followingUserId}
+        showCursors={showMultiplayerCursors}
+      />
+      <ConnectionStatus />
+
       {/* Main content */}
       <main className="flex-1 relative flex items-center justify-center w-full">
         <div className="relative w-full h-full">
@@ -3387,6 +3555,11 @@ export default function OverlayPage() {
                     </Layer>
                   </Stage>
                 )}
+
+                {/* Multiplayer cursors overlay - outside of Konva */}
+                {showMultiplayerCursors && isMultiplayer && (
+                  <MultiplayerCursors viewport={viewport} />
+                )}
               </div>
             </ContextMenuTrigger>
             <CanvasContextMenu
@@ -3418,16 +3591,18 @@ export default function OverlayPage() {
           </ContextMenu>
 
           <div className="absolute top-4 left-4 z-20 flex flex-col items-start gap-2">
-            {/* Fal logo */}
-            <div className="md:hidden border bg-background/80 py-2 px-3 flex flex-row rounded-xl gap-2 items-center">
-              <Link
-                href="https://fal.ai"
-                target="_blank"
-                className="block transition-opacity"
-              >
-                <Logo className="h-8 w-16 text-foreground" />
-              </Link>
-            </div>
+            {/* Fal logo - only show on homepage */}
+            {!isMultiplayer && (
+              <div className="md:hidden border bg-background/80 py-2 px-3 flex flex-row rounded-xl gap-2 items-center">
+                <Link
+                  href="https://fal.ai"
+                  target="_blank"
+                  className="block transition-opacity"
+                >
+                  <Logo className="h-8 w-16 text-foreground" />
+                </Link>
+              </div>
+            )}
 
             {/* Mobile tool icons - animated based on selection */}
             <MobileToolbar
