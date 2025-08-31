@@ -122,6 +122,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { GithubBadge } from "@/components/canvas/GithubBadge";
+import { Header } from "@/components/header";
 import { GenerationsIndicator } from "@/components/generations-indicator";
 
 // Add this with other imports around line 118
@@ -3989,6 +3990,7 @@ export default function OverlayPage() {
           />
 
           <PoweredByFalBadge />
+          <Header />
           {/* <GithubBadge /> */}
 
           {/* Dimension display for selected images */}
