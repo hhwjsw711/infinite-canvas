@@ -11,8 +11,8 @@ import { dark } from "@clerk/themes";
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  const { theme } = useTheme();
-  const isDark = theme === "dark";
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   return (
     <ClerkProvider appearance={{ baseTheme: isDark ? dark : undefined }}>
