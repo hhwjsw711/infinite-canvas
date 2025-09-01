@@ -30,6 +30,8 @@ import {
   MdOutlineMemory,
 } from "react-icons/md";
 import { DynamicImage } from "./dynamic-image";
+import { Authenticated, Unauthenticated } from "convex/react";
+import { SignInButton, UserButton } from "@clerk/nextjs";
 
 const listVariant = {
   show: {
@@ -193,7 +195,7 @@ export function Header() {
   }
 
   return (
-    <header className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-fit px-2 md:px-4">
+    <header className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-fit px-2 md:px-4 hidden md:block">
       <nav className="border border-border px-4 flex items-center backdrop-filter backdrop-blur-lg bg-card/95 h-[50px] z-20 relative rounded-full shadow-lg">
         <ContextMenu>
           <ContextMenuTrigger>
@@ -305,30 +307,24 @@ export function Header() {
           })}
         </ul>
 
-        <button
-          type="button"
-          className="ml-auto md:hidden p-2"
-          onClick={() => handleToggleMenu()}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width={18}
-            height={13}
-            fill="none"
-          >
-            <path
-              fill="currentColor"
-              d="M0 12.195v-2.007h18v2.007H0Zm0-5.017V5.172h18v2.006H0Zm0-5.016V.155h18v2.007H0Z"
+        <div className="ml-auto pl-4 border-l border-border hidden md:flex items-center">
+          <Authenticated>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-8 h-8",
+                },
+              }}
             />
-          </svg>
-        </button>
-
-        <a
-          className="text-sm font-medium pr-2 border-l-[1px] border-border pl-4 hidden md:block"
-          href="https://app.midday.ai"
-        >
-          Sign in
-        </a>
+          </Authenticated>
+          <Unauthenticated>
+            <SignInButton mode="modal">
+              <button className="text-sm font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 whitespace-nowrap">
+                Sign in
+              </button>
+            </SignInButton>
+          </Unauthenticated>
+        </div>
       </nav>
 
       {isOpen && (

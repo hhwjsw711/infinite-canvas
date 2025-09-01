@@ -23,6 +23,7 @@ const eslintConfig = [
       "@typescript-eslint/no-explicit-any": "off",
       "react-hooks/exhaustive-deps": "off",
       "react-hooks/rules-of-hooks": "off",
+      "import/no-anonymous-default-export": "off",
     },
   },
 ];
