@@ -33,7 +33,7 @@ export default function GeneralSettingsPage() {
           {team.isPersonal ? <>Account Settings</> : <>Team Settings</>}
         </h1>
       </div>
-      <Card disabled={!permissions.has("Delete Team")}>
+      <Card>
         {team.isPersonal ? (
           <>
             <CardHeader>
