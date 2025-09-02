@@ -30,8 +30,8 @@ import {
   MdOutlineMemory,
 } from "react-icons/md";
 import { DynamicImage } from "./dynamic-image";
-import { Authenticated, Unauthenticated } from "convex/react";
-import { SignInButton, UserButton } from "@clerk/nextjs";
+import { Suspense } from "react";
+import { DashboardButtons } from "./dashboard-buttons";
 
 const listVariant = {
   show: {
@@ -195,8 +195,8 @@ export function Header() {
   }
 
   return (
-    <header className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-fit px-2 md:px-4 hidden md:block">
-      <nav className="border border-border px-4 flex items-center backdrop-filter backdrop-blur-lg bg-card/95 h-[50px] z-20 relative rounded-full shadow-lg">
+    <header className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 hidden md:block">
+      <nav className="border bg-card p-2 flex items-center backdrop-filter backdrop-blur-xl bg-opacity-70 h-[50px] z-20 relative rounded-xl">
         <ContextMenu>
           <ContextMenuTrigger>
             <Link href="/">
@@ -206,7 +206,7 @@ export function Header() {
           </ContextMenuTrigger>
 
           <ContextMenuContent
-            className="w-[200px] bg-card/95 backdrop-blur-lg rounded-lg border border-border"
+            className="w-[200px] bg-card rounded-xl border"
             alignOffset={20}
           >
             <div className="divide-y">
@@ -275,7 +275,7 @@ export function Header() {
                 {children && (
                   <div
                     className={cn(
-                      "absolute top-[48px] left-0 -mx-[calc(var(--pixel-ratio)_*_2px)] bg-card/95 backdrop-blur-lg flex h-0 group-hover:h-[250px] overflow-hidden transition-all duration-300 ease-in-out border-l border-r border-border rounded-b-lg",
+                      "absolute top-[48px] left-0 -mx-[calc(var(--pixel-ratio)_*_2px)] bg-card flex h-0 group-hover:h-[250px] overflow-hidden transition-all duration-300 ease-in-out border-l border-r rounded-b-xl",
                       hidden && "hidden",
                     )}
                   >
@@ -307,29 +307,32 @@ export function Header() {
           })}
         </ul>
 
-        <div className="ml-auto pl-4 border-l border-border hidden md:flex items-center">
-          <Authenticated>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "w-8 h-8",
-                },
-              }}
+        <button
+          type="button"
+          className="ml-auto md:hidden p-2"
+          onClick={() => handleToggleMenu()}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width={18}
+            height={13}
+            fill="none"
+          >
+            <path
+              fill="currentColor"
+              d="M0 12.195v-2.007h18v2.007H0Zm0-5.017V5.172h18v2.006H0Zm0-5.016V.155h18v2.007H0Z"
             />
-          </Authenticated>
-          <Unauthenticated>
-            <SignInButton mode="modal">
-              <button className="text-sm font-medium px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200 whitespace-nowrap">
-                Sign in
-              </button>
-            </SignInButton>
-          </Unauthenticated>
-        </div>
+          </svg>
+        </button>
+
+        <Suspense>
+          <DashboardButtons />
+        </Suspense>
       </nav>
 
       {isOpen && (
         <motion.div
-          className="fixed bg-card/95 backdrop-blur-lg -top-[2px] right-0 left-0 bottom-0 h-screen z-10 px-2"
+          className="fixed bg-background -top-[2px] right-0 left-0 bottom-0 h-screen z-10 px-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
@@ -420,24 +423,14 @@ export function Header() {
                 className="mt-auto border-t-[1px] pt-8"
                 variants={itemVariant}
               >
-                <Link
-                  className="text-xl text-primary"
-                  href="https://app.midday.ai"
-                >
-                  Sign in
-                </Link>
+                <Suspense>
+                  <DashboardButtons />
+                </Suspense>
               </motion.li>
             </motion.ul>
           </div>
         </motion.div>
       )}
-
-      <div
-        className={cn(
-          "fixed w-screen h-screen backdrop-blur-md left-0 top-0 invisible opacity-0 transition-all duration-300 z-10",
-          showBlur && "md:visible opacity-100",
-        )}
-      />
     </header>
   );
 }
