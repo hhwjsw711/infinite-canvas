@@ -55,7 +55,7 @@ function AddMemberForm({
       role: defaultRole,
     },
   });
-  const sendInvite = useAction(api.users.teams.members.invites.send);
+  const sendInvite = useAction(api.users.teams.members.emails.send);
   if (team == null) {
     return null;
   }

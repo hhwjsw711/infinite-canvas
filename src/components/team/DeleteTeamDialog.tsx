@@ -32,6 +32,7 @@ export function DeleteTeamDialog({
   }
   const handleDelete = handleFailure(async () => {
     await deleteTeam({ teamId: team._id });
+    setOpen(false);
     if (team.isPersonal) {
       await clerkUser!.delete();
       router.push("/");
